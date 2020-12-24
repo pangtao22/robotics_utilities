@@ -1,2 +1,9 @@
-numpy
 meshcat
+numpy
+scipy
+lxml
+matplotlib
+networkx
+codecov
+pytest-cov
+pytest-subtests
