@@ -12,6 +12,7 @@ env:
 install:
   - curl -o drake.tar.gz $DRAKE_URL && sudo tar -xzf drake.tar.gz -C /opt
   - yes | sudo /opt/drake/share/drake/setup/install_prereqs
+  - pip install -r requirements.txt
 
 script:
   - pytest .
