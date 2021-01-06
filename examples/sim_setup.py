@@ -1,11 +1,10 @@
 import numpy as np
 
 from pydrake.all import (AddMultibodyPlantSceneGraph, ConnectMeshcatVisualizer,
-    Simulator, SpatialForce)
+    Simulator, SpatialForce, RigidTransform)
 from pydrake.trajectories import PiecewisePolynomial
 from pydrake.systems.framework import DiagramBuilder
 from pydrake.multibody.plant import ExternallyAppliedSpatialForce
-from pydrake.math import RigidTransform
 from pydrake.systems.primitives import TrajectorySource, LogOutput
 
 from iiwa_controller.utils import *
@@ -17,6 +16,7 @@ def run_sim(q_traj_iiwa: PiecewisePolynomial,
             gravity: np.array,
             f_C_W,
             time_step,
+            add_schunk: bool,
             is_visualizing=False):
     # Build diagram.
     builder = DiagramBuilder()
@@ -33,10 +33,17 @@ def run_sim(q_traj_iiwa: PiecewisePolynomial,
                      X_AB=RigidTransform.Identity())
 
     plant.mutable_gravity_field().set_gravity_vector(gravity)
+
+    if add_schunk:
+        schunk_model = parser.AddModelFromFile(schunk_sdf_path_drake)
+        plant.WeldFrames(A=plant.GetFrameByName("iiwa_link_7"),
+                         B=plant.GetFrameByName("body", schunk_model),
+                         X_AB=X_L7E)
     plant.Finalize()
 
     # IIWA controller
-    plant_robot, _ = create_iiwa_controller_plant(gravity)
+    plant_robot, _ = create_iiwa_controller_plant(
+        gravity, add_schunk_inertia=add_schunk)
     controller_iiwa = RobotInternalController(
         plant_robot=plant_robot, joint_stiffness=Kp_iiwa,
         controller_mode="impedance")
@@ -76,6 +83,9 @@ def run_sim(q_traj_iiwa: PiecewisePolynomial,
     q_iiwa_0 = q_traj_iiwa.value(0).squeeze()
     t_final = q_traj_iiwa.end_time()
     plant.SetPositions(context_plant, iiwa_model, q_iiwa_0)
+    if add_schunk:
+        plant.get_actuation_input_port(schunk_model).FixValue(
+            context_plant, np.zeros(2))
 
     # constant force on link 7.
     easf = ExternallyAppliedSpatialForce()

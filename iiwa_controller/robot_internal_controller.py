@@ -37,7 +37,7 @@ class RobotInternalController(LeafSystem):
                 "joint_torques", BasicVector(self.nv), self.CalcJointTorques)
 
         # control rate
-        self.control_period = 5e-4  # 2000Hz.
+        self.control_period = 2e-4  # 5000Hz.
         self.DeclareDiscreteState(self.nv)
         self.DeclarePeriodicDiscreteUpdate(period_sec=self.control_period)
 
