@@ -1,5 +1,6 @@
 .DS_Store
 .idea
-*.pyc
 .coverage
 .ipynb_checkpoints
+*.ipynb
+*.pyc

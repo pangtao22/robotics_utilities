@@ -23,22 +23,25 @@ def run_sim(q_traj_iiwa: PiecewisePolynomial,
 
     # MultibodyPlant
     plant = MultibodyPlant(time_step)
-    _, scene_graph = AddMultibodyPlantSceneGraph(builder, plant=plant)
-    parser = Parser(plant=plant, scene_graph=scene_graph)
-
-    # fix robot to world
-    iiwa_model = parser.AddModelFromFile(iiwa_sdf_path_drake)
-    plant.WeldFrames(A=plant.world_frame(),
-                     B=plant.GetFrameByName("iiwa_link_0"),
-                     X_AB=RigidTransform.Identity())
-
     plant.mutable_gravity_field().set_gravity_vector(gravity)
 
+    _, scene_graph = AddMultibodyPlantSceneGraph(builder, plant=plant)
+    parser = Parser(plant=plant, scene_graph=scene_graph)
+    add_package_paths(parser)
+
     if add_schunk:
-        schunk_model = parser.AddModelFromFile(schunk_sdf_path_drake)
-        plant.WeldFrames(A=plant.GetFrameByName("iiwa_link_7"),
-                         B=plant.GetFrameByName("body", schunk_model),
-                         X_AB=X_L7E)
+        ProcessModelDirectives(
+            LoadModelDirectives(
+                os.path.join(models_dir, 'iiwa_and_schunk.yml')),
+            plant, parser)
+        schunk_model = plant.GetModelInstanceByName('schunk')
+    else:
+        ProcessModelDirectives(
+            LoadModelDirectives(os.path.join(models_dir, 'iiwa.yml')),
+            plant, parser)
+
+    iiwa_model = plant.GetModelInstanceByName('iiwa')
+
     plant.Finalize()
 
     # IIWA controller
