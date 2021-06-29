@@ -1,0 +1,18 @@
+directives:
+  - add_directives:
+      file: package://local/iiwa.yml
+
+  - add_frame:
+      name: l7_ee_offset
+      X_PF:
+        base_frame: iiwa::iiwa_link_7
+        rotation: !Rpy {deg: [90.0, 0, 90.0]}
+        translation: [0, 0, 0.114]
+
+  - add_model:
+      name: schunk
+      file: package://drake_manipulation_models/wsg_50_description/sdf/schunk_wsg_50_ball_contact.sdf
+
+  - add_weld:
+      parent: l7_ee_offset
+      child: schunk::body

@@ -1,11 +1,16 @@
+import os
+
 import numpy as np
+import pydrake.common
 
 from pydrake.all import (FindResourceOrThrow, Parser, MultibodyPlant,
-    Joint, SpatialInertia, RigidTransform)
+    Joint, SpatialInertia, RigidTransform, ProcessModelDirectives,
+    LoadModelDirectives)
 from pydrake.math import RollPitchYaw
 
-iiwa_sdf_path_drake = FindResourceOrThrow(
-    "drake/manipulation/models/iiwa_description/iiwa7/iiwa7_no_collision.sdf")
+
+models_dir = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)), 'models')
 
 schunk_sdf_path_drake = FindResourceOrThrow(
     "drake/manipulation/models/wsg_50_description/sdf"
@@ -13,6 +18,15 @@ schunk_sdf_path_drake = FindResourceOrThrow(
 
 X_L7E = RigidTransform(
     RollPitchYaw(np.pi / 2, 0, np.pi / 2), np.array([0, 0, 0.114]))
+
+
+def add_package_paths(parser: Parser):
+    parser.package_map().Add(
+        "drake_manipulation_models",
+        os.path.join(pydrake.common.GetDrakePath(),
+                     "manipulation/models"))
+
+    parser.package_map().Add("local", models_dir)
 
 
 def create_iiwa_controller_plant(gravity, add_schunk_inertia=False):
@@ -24,18 +38,20 @@ def create_iiwa_controller_plant(gravity, add_schunk_inertia=False):
     """
     plant = MultibodyPlant(1e-3)
     parser = Parser(plant=plant)
-    iiwa_model = parser.AddModelFromFile(iiwa_sdf_path_drake)
-    plant.WeldFrames(A=plant.world_frame(),
-                           B=plant.GetFrameByName("iiwa_link_0"))
+    add_package_paths(parser)
+    ProcessModelDirectives(
+        LoadModelDirectives(os.path.join(models_dir, 'iiwa.yml')),
+        plant, parser)
     plant.mutable_gravity_field().set_gravity_vector(gravity)
 
     if add_schunk_inertia:
+        iiwa_model = plant.GetModelInstanceByName('iiwa')
         wsg_equivalent = plant.AddRigidBody(
             "wsg_equivalent", iiwa_model, calc_schunk_inertia())
         plant.WeldFrames(
-            A=plant.GetFrameByName("iiwa_link_7", iiwa_model),
-            B=wsg_equivalent.body_frame(),
-            X_AB=X_L7E)
+            frame_on_parent_P=plant.GetFrameByName("iiwa_link_7", iiwa_model),
+            frame_on_child_C=wsg_equivalent.body_frame(),
+            X_PC=X_L7E)
 
     plant.Finalize()
 
