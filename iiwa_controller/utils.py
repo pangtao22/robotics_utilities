@@ -26,7 +26,11 @@ def add_package_paths(parser: Parser):
         os.path.join(pydrake.common.GetDrakePath(),
                      "manipulation/models"))
 
-    parser.package_map().Add("local", models_dir)
+    parser.package_map().Add("iiwa_controller", models_dir)
+
+
+def get_package_path():
+    return os.path.dirname(os.path.dirname(__file__))
 
 
 def create_iiwa_controller_plant(gravity, add_schunk_inertia=False):
