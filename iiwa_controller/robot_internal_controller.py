@@ -2,7 +2,7 @@ import numpy as np
 
 from pydrake.systems.framework import (LeafSystem, BasicVector, PortDataType)
 from pydrake.multibody.tree import (MultibodyForces)
-from .low_pass_filter import LowPassFilter
+from primitives.low_pass_filter import LowPassFilter
 
 
 class RobotInternalController(LeafSystem):
