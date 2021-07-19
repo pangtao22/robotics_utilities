@@ -1,6 +1,5 @@
-# IIWA Controller
-
+# Robotics Utilities
 [![Build Status](https://travis-ci.com/pangtao22/iiwa_controller.svg?branch=master)](https://travis-ci.com/pangtao22/iiwa_controller)
 [![codecov](https://codecov.io/gh/pangtao22/iiwa_controller/branch/master/graph/badge.svg?token=GLFWWJRUYO)](https://codecov.io/gh/pangtao22/iiwa_controller)
 
-A pydrake implementation of IIWA's joint impedance controller as described in [Ott 2008](https://ieeexplore.ieee.org/abstract/document/4451347).
+A collection of frequently used functions and classes for robotics research.
