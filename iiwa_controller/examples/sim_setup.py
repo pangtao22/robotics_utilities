@@ -7,8 +7,8 @@ from pydrake.systems.framework import DiagramBuilder
 from pydrake.multibody.plant import ExternallyAppliedSpatialForce
 from pydrake.systems.primitives import TrajectorySource, LogOutput
 
-from iiwa_controller.utils import *
-from iiwa_controller.robot_internal_controller import RobotInternalController
+from ..utils import *
+from ..robot_internal_controller import RobotInternalController
 
 
 def run_sim(q_traj_iiwa: PiecewisePolynomial,
