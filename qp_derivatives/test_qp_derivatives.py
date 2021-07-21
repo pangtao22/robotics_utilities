@@ -48,16 +48,21 @@ class TestQpDerivatives(unittest.TestCase):
                 Q=Q, b=b, G=G, e=e, z_star=z_star, lambda_star=lambda_star)
             self.dqp_numerical.update_problem(Q=Q, b=b, G=G, e=e)
 
-            self.assertTrue(np.allclose(
-                self.dqp_kkt.calc_DzDe(),
-                self.dqp_numerical.calc_DzDe(epsilon=1e-4), atol=1e-5))
+            DzDe_kkt = self.dqp_kkt.calc_DzDe()
+            DzDe_numerical = self.dqp_numerical.calc_DzDe(epsilon=1e-4)
+            # print('kkt\n', DzDe_kkt)
+            # print('numerical\n', DzDe_numerical)
 
-            self.assertTrue(np.allclose(
-                self.dqp_kkt.calc_DzDb(),
-                self.dqp_numerical.calc_DzDb(epsilon=1e-4), atol=1e-5))
+            DzDb_kkt = self.dqp_kkt.calc_DzDb()
+            DzDb_numerical = self.dqp_numerical.calc_DzDb(epsilon=1e-4)
+            # print('kkt\n', DzDb_kkt)
+            # print('numerical\n', DzDb_numerical)
 
-            self.assertTrue(np.allclose(
-                self.dqp_kkt.calc_DzDG_vec(),
-                self.dqp_numerical.calc_DzDG_vec(epsilon=1e-4), atol=1e-4))
+            DzDG_vec = self.dqp_kkt.calc_DzDG_vec()
+            DzDG_vec_numerical = self.dqp_numerical.calc_DzDG_vec(
+                epsilon=1e-4)
 
-
+            self.assertTrue(np.allclose(DzDe_kkt, DzDe_numerical, atol=1e-5))
+            self.assertTrue(np.allclose(DzDb_kkt, DzDb_numerical, atol=1e-5))
+            self.assertTrue(np.allclose(DzDG_vec, DzDG_vec_numerical,
+                                        atol = 1e-4))

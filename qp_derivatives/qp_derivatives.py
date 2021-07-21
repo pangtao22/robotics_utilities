@@ -36,7 +36,7 @@ class QpDerivativesKkt:
         A_inverse[:n_z, n_z:] = G.T
         A_inverse[n_z:, :n_z] = np.diag(lambda_star) @ G
         A_inverse[n_z:, n_z:] = np.diag(G @ z_star - e)
-        A = np.linalg.lstsq(A_inverse, np.eye(n_lambda + n_z), rcond=None)[0]
+        A = np.linalg.pinv(A_inverse)
         self.A11 = A[:n_z, :n_z]
         self.A12 = A[:n_z, n_z:]
         self.z_star = z_star
