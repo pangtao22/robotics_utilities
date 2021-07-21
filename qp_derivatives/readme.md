@@ -1,4 +1,5 @@
-#QP derivatives
+# QP derivatives
+
 Computes the derivatives of the solution of a quadratic program (QP) w.r.t. the QP's parameters using 
 - Numerical differentiation,
 - Sensitivity analysis (Inverse Function Theorem). 
