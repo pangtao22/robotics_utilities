@@ -3,8 +3,8 @@ import unittest
 import numpy as np
 from pydrake.all import OsqpSolver, GurobiSolver
 
-from .qp_derivatives import (QpDerivativesKkt, QpDerivativesNumerical,
-                             build_qp_and_solve)
+from .qp_derivatives import (QpDerivativesKktPinv, QpDerivativesNumerical,
+                             build_qp_and_solve, QpDerivativesKktLstsq)
 
 
 class TestQpDerivatives(unittest.TestCase):
@@ -37,7 +37,8 @@ class TestQpDerivatives(unittest.TestCase):
         else:
             self.solver = OsqpSolver()
 
-        self.dqp_kkt = QpDerivativesKkt()
+        self.dqp_kkt = QpDerivativesKktPinv()
+        self.dqp_kkt2 = QpDerivativesKktLstsq()
         self.dqp_numerical = QpDerivativesNumerical(solver=self.solver)
 
     def test_derivatives(self):
@@ -47,6 +48,8 @@ class TestQpDerivatives(unittest.TestCase):
             self.dqp_kkt.update_problem(
                 Q=Q, b=b, G=G, e=e, z_star=z_star, lambda_star=lambda_star)
             self.dqp_numerical.update_problem(Q=Q, b=b, G=G, e=e)
+            self.dqp_kkt2.update_problem(
+                Q=Q, b=b, G=G, e=e, z_star=z_star, lambda_star=lambda_star)
 
             DzDe_kkt = self.dqp_kkt.calc_DzDe()
             DzDe_numerical = self.dqp_numerical.calc_DzDe(epsilon=1e-4)
@@ -62,6 +65,10 @@ class TestQpDerivatives(unittest.TestCase):
             DzDG_vec_numerical = self.dqp_numerical.calc_DzDG_vec(
                 epsilon=1e-4)
 
+            DzDe_kkt2, DzDb_kkt2 = self.dqp_kkt2.calc_DzDe_and_DzDb()
+
+            self.assertTrue(np.allclose(DzDe_kkt2, DzDe_kkt))
+            self.assertTrue(np.allclose(DzDb_kkt2, DzDb_kkt))
             self.assertTrue(np.allclose(DzDe_kkt, DzDe_numerical, atol=1e-5))
             self.assertTrue(np.allclose(DzDb_kkt, DzDb_numerical, atol=1e-5))
             self.assertTrue(np.allclose(DzDG_vec, DzDG_vec_numerical,

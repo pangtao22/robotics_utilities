@@ -1,5 +1,7 @@
 import numpy as np
 import pydrake.solvers.mathematicalprogram as mp
+from scipy.sparse import csc_matrix
+from scipy.sparse.linalg import lsqr
 
 """
 QP:
@@ -8,7 +10,7 @@ s.t. G.dot(z) <= e
 """
 
 
-class QpDerivativesKkt:
+class QpDerivativesKktPinv:
     def __init__(self):
         self.n_z = 0  # number of decision variables.
         self.n_lambda = 0  # number constraints / lagrange multipliers.
@@ -60,6 +62,53 @@ class QpDerivativesKkt:
         dzdG_vec = -np.kron(self.A11, self.lambda_star)
         dzdG_vec -= np.kron(self.z_star, self.A12 * self.lambda_star)
         return dzdG_vec
+
+
+class QpDerivativesKktLstsq:
+    def __init__(self):
+        """
+        np.linalg.lstsq is 20% faster than np.linalg.pinv.
+        """
+        self.n_z = 0
+        self.n_lambda = 0
+        self.A_inverse = np.array([])
+        self.z_star = np.array([])
+        self.lambda_star = np.array([])
+
+    def update_problem(self, Q: np.ndarray, b: np.ndarray, G: np.ndarray,
+                       e:np.ndarray, z_star: np.ndarray, lambda_star: np.ndarray):
+        n_z = len(z_star)
+        n_lambda = len(lambda_star)
+        assert Q.shape[1] == Q.shape[0] == n_z
+        assert b.size == n_z
+        assert G.shape[0] == n_lambda
+        assert G.shape[1] == n_z
+        assert e.size == n_lambda
+
+        self.n_z = n_z
+        self.n_lambda = n_lambda
+
+        A_inverse = np.eye(n_z + n_lambda)
+        A_inverse[:n_z, :n_z] = Q
+        A_inverse[:n_z, n_z:] = G.T
+        A_inverse[n_z:, :n_z] = np.diag(lambda_star) @ G
+        A_inverse[n_z:, n_z:] = np.diag(G @ z_star - e)
+        self.A_inverse = A_inverse
+        self.z_star = z_star
+        self.lambda_star = lambda_star
+
+    def calc_DzDe_and_DzDb(self):
+        n = self.n_z
+        m = self.n_lambda
+        rhs = np.zeros((m + n, m + n))
+        rhs[n:, :m] = np.diag(self.lambda_star)
+        rhs[:n, m:] = -np.eye(n)
+        # sol.shape is (m+n, m+n)
+        sol = np.linalg.lstsq(self.A_inverse, rhs, rcond=None)[0]
+        DzDe = sol[:n, :m]
+        DzDb = sol[:n, m:]
+
+        return DzDe, DzDb
 
 
 def build_qp_and_solve(
