@@ -4,7 +4,8 @@ import numpy as np
 from pydrake.all import OsqpSolver, GurobiSolver
 
 from .qp_derivatives import (QpDerivativesKktPinv, QpDerivativesNumerical,
-                             build_qp_and_solve, QpDerivativesKktLstsq)
+                             build_qp_and_solve, QpDerivativesKktLstsq,
+                             QpDerivativesKktActive)
 
 
 class TestQpDerivatives(unittest.TestCase):
@@ -39,6 +40,7 @@ class TestQpDerivatives(unittest.TestCase):
 
         self.dqp_kkt = QpDerivativesKktPinv()
         self.dqp_kkt2 = QpDerivativesKktLstsq()
+        self.dqp_kkt_active = QpDerivativesKktActive()
         self.dqp_numerical = QpDerivativesNumerical(solver=self.solver)
 
     def test_derivatives(self):
@@ -50,18 +52,20 @@ class TestQpDerivatives(unittest.TestCase):
             self.dqp_numerical.update_problem(Q=Q, b=b, G=G, e=e)
             self.dqp_kkt2.update_problem(
                 Q=Q, b=b, G=G, e=e, z_star=z_star, lambda_star=lambda_star)
+            self.dqp_kkt_active.update_problem(
+                Q=Q, b=b, G=G, e=e, z_star=z_star, lambda_star=lambda_star,
+                lambda_threshold=1e-3)
 
             DzDe_kkt = self.dqp_kkt.calc_DzDe()
+            DzDe_active = self.dqp_kkt_active.calc_DzDe()
             DzDe_numerical = self.dqp_numerical.calc_DzDe(epsilon=1e-4)
-            # print('kkt\n', DzDe_kkt)
-            # print('numerical\n', DzDe_numerical)
 
             DzDb_kkt = self.dqp_kkt.calc_DzDb()
+            DzDb_active = self.dqp_kkt_active.calc_DzDb()
             DzDb_numerical = self.dqp_numerical.calc_DzDb(epsilon=1e-4)
-            # print('kkt\n', DzDb_kkt)
-            # print('numerical\n', DzDb_numerical)
 
             DzDG_vec = self.dqp_kkt.calc_DzDG_vec()
+            DzdG_vec_active = self.dqp_numerical.calc_DzDG_vec()
             DzDG_vec_numerical = self.dqp_numerical.calc_DzDG_vec(
                 epsilon=1e-4)
 
@@ -72,4 +76,9 @@ class TestQpDerivatives(unittest.TestCase):
             self.assertTrue(np.allclose(DzDe_kkt, DzDe_numerical, atol=1e-5))
             self.assertTrue(np.allclose(DzDb_kkt, DzDb_numerical, atol=1e-5))
             self.assertTrue(np.allclose(DzDG_vec, DzDG_vec_numerical,
-                                        atol = 1e-4))
+                                        atol=1e-3))
+            self.assertTrue(np.allclose(DzDe_active, DzDe_kkt, atol=1e-3))
+            self.assertTrue(np.allclose(DzDb_active, DzDb_active, atol=1e-3))
+            self.assertTrue(np.allclose(DzdG_vec_active, DzDG_vec, atol=1e-5,
+                                        rtol=1e-2))
+
