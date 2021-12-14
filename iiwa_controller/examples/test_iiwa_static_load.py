@@ -1,7 +1,7 @@
 import unittest
 
 from .sim_setup import *
-from pydrake.all import SignalLogger, JacobianWrtVariable
+from pydrake.all import VectorLog, JacobianWrtVariable
 
 
 class TestIiwaStaticLoad(unittest.TestCase):
@@ -24,7 +24,7 @@ class TestIiwaStaticLoad(unittest.TestCase):
         self.qa_traj = PiecewisePolynomial.FirstOrderHold([0, 1],
                                                           q_iiwa_knots.T)
 
-    def check_sim_results(self, iiwa_log: SignalLogger, plant: MultibodyPlant,
+    def check_sim_results(self, iiwa_log: VectorLog, plant: MultibodyPlant,
                           tau_tolerance: float):
         # check simulation results.
         q_iiwa = iiwa_log.data().T[:, :7]

@@ -1,11 +1,11 @@
 import numpy as np
 
 from pydrake.all import (AddMultibodyPlantSceneGraph, ConnectMeshcatVisualizer,
-    Simulator, SpatialForce, RigidTransform)
+    Simulator, SpatialForce, RigidTransform, VectorLogSink, LogVectorOutput)
 from pydrake.trajectories import PiecewisePolynomial
 from pydrake.systems.framework import DiagramBuilder
 from pydrake.multibody.plant import ExternallyAppliedSpatialForce
-from pydrake.systems.primitives import TrajectorySource, LogOutput
+from pydrake.systems.primitives import TrajectorySource
 
 from ..utils import *
 from ..robot_internal_controller import RobotInternalController
@@ -69,8 +69,8 @@ def run_sim(q_traj_iiwa: PiecewisePolynomial,
             builder, scene_graph, frames_to_draw={"iiwa": {"link_ee"}})
 
     # Logs
-    iiwa_log = LogOutput(plant.get_state_output_port(iiwa_model), builder)
-    iiwa_log.set_publish_period(0.001)
+    iiwa_log_sink = LogVectorOutput(
+        plant.get_state_output_port(iiwa_model), builder, publish_period=0.001)
     diagram = builder.Build()
 
     # %% Run simulation.
@@ -102,4 +102,5 @@ def run_sim(q_traj_iiwa: PiecewisePolynomial,
     sim.set_target_realtime_rate(0)
     sim.AdvanceTo(t_final)
 
+    iiwa_log = iiwa_log_sink.FindLog(context)
     return iiwa_log, controller_iiwa
