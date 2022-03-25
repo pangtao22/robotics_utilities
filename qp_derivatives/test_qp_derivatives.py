@@ -65,7 +65,7 @@ class TestQpDerivatives(unittest.TestCase):
             DzDb_numerical = self.dqp_numerical.calc_DzDb(epsilon=1e-4)
 
             DzDG_vec = self.dqp_kkt.calc_DzDG_vec()
-            DzdG_vec_active = self.dqp_numerical.calc_DzDG_vec()
+            DzdG_vec_active = self.dqp_kkt_active.calc_DzDG_vec()
             DzDG_vec_numerical = self.dqp_numerical.calc_DzDG_vec(
                 epsilon=1e-4)
 

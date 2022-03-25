@@ -73,7 +73,7 @@ class QpDerivativesKktActive:
         """
         self.n_z = 0  # number of decision variables.
         self.n_lambda = 0  # number of constraints / lagrange multipliers.
-        self.n_nu = 0  # number of constraits with large lagrange multipliers.
+        self.n_nu = 0  # number of constraints with large lagrange multipliers.
         self.A11 = np.array([])
         self.A12 = np.array([])
         self.z_star = np.array([])
