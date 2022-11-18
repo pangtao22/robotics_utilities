@@ -3,28 +3,33 @@ import os
 import numpy as np
 import pydrake.common
 
-from pydrake.all import (FindResourceOrThrow, Parser, MultibodyPlant,
-    Joint, SpatialInertia, RigidTransform, ProcessModelDirectives,
-    LoadModelDirectives)
+from pydrake.all import (
+    FindResourceOrThrow,
+    Parser,
+    MultibodyPlant,
+    Joint,
+    SpatialInertia,
+    RigidTransform,
+    ProcessModelDirectives,
+    LoadModelDirectives,
+)
 from pydrake.math import RollPitchYaw
 
 
-models_dir = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), 'models')
+models_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models")
 
 schunk_sdf_path_drake = FindResourceOrThrow(
-    "drake/manipulation/models/wsg_50_description/sdf"
-    "/schunk_wsg_50_ball_contact.sdf")
+    "drake/manipulation/models/wsg_50_description/sdf" "/schunk_wsg_50_ball_contact.sdf"
+)
 
-X_L7E = RigidTransform(
-    RollPitchYaw(np.pi / 2, 0, np.pi / 2), np.array([0, 0, 0.114]))
+X_L7E = RigidTransform(RollPitchYaw(np.pi / 2, 0, np.pi / 2), np.array([0, 0, 0.114]))
 
 
 def add_package_paths(parser: Parser):
     parser.package_map().Add(
         "drake_manipulation_models",
-        os.path.join(pydrake.common.GetDrakePath(),
-                     "manipulation/models"))
+        os.path.join(pydrake.common.GetDrakePath(), "manipulation/models"),
+    )
 
     parser.package_map().Add("iiwa_controller", models_dir)
 
@@ -44,25 +49,26 @@ def create_iiwa_controller_plant(gravity, add_schunk_inertia=False):
     parser = Parser(plant=plant)
     add_package_paths(parser)
     ProcessModelDirectives(
-        LoadModelDirectives(os.path.join(models_dir, 'iiwa.yml')),
-        plant, parser)
+        LoadModelDirectives(os.path.join(models_dir, "iiwa.yml")), plant, parser
+    )
     plant.mutable_gravity_field().set_gravity_vector(gravity)
 
     if add_schunk_inertia:
-        iiwa_model = plant.GetModelInstanceByName('iiwa')
+        iiwa_model = plant.GetModelInstanceByName("iiwa")
         wsg_equivalent = plant.AddRigidBody(
-            "wsg_equivalent", iiwa_model, calc_schunk_inertia())
+            "wsg_equivalent", iiwa_model, calc_schunk_inertia()
+        )
         plant.WeldFrames(
             frame_on_parent_P=plant.GetFrameByName("iiwa_link_7", iiwa_model),
             frame_on_child_C=wsg_equivalent.body_frame(),
-            X_PC=X_L7E)
+            X_PC=X_L7E,
+        )
 
     plant.Finalize()
 
     link_frame_indices = []
     for i in range(8):
-        link_frame_indices.append(
-            plant.GetFrameByName("iiwa_link_" + str(i)).index())
+        link_frame_indices.append(plant.GetFrameByName("iiwa_link_" + str(i)).index())
 
     return plant, link_frame_indices
 
@@ -72,6 +78,7 @@ def calc_schunk_inertia():
     Verbatim translation from a function in drake's ManipulationStation.
     :return:
     """
+
     def calc_finger_pose_in_gripper_frame(slider: Joint):
         # Pose of the joint's parent frame P (attached on gripper body G) in the
         #  frame of the gripper G.
@@ -85,7 +92,8 @@ def calc_schunk_inertia():
         return X_GF
 
     def calc_finger_spatial_inertia_in_gripper_frame(
-            M_FFo_F: SpatialInertia, X_GF: RigidTransform):
+        M_FFo_F: SpatialInertia, X_GF: RigidTransform
+    ):
         """
         Helper to compute the spatial inertia of a finger F in about the
             gripper's origin Go, expressed in G.
