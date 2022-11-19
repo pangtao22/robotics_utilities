@@ -19,9 +19,15 @@ class QpDerivativesKktPinv:
         self.z_star = np.array([])
         self.lambda_star = np.array([])
 
-    def update_problem(self, Q: np.ndarray, b: np.ndarray, G: np.ndarray,
-                       e: np.ndarray, z_star: np.ndarray,
-                       lambda_star: np.ndarray):
+    def update_problem(
+        self,
+        Q: np.ndarray,
+        b: np.ndarray,
+        G: np.ndarray,
+        e: np.ndarray,
+        z_star: np.ndarray,
+        lambda_star: np.ndarray,
+    ):
         n_z = len(z_star)
         n_lambda = len(lambda_star)
         assert Q.shape[1] == Q.shape[0] == n_z
@@ -79,9 +85,16 @@ class QpDerivativesKktActive:
         self.z_star = np.array([])
         self.nu_star = np.array([])
 
-    def update_problem(self, Q: np.ndarray, b: np.ndarray, G: np.ndarray,
-                       e: np.ndarray, z_star: np.ndarray,
-                       lambda_star: np.ndarray, lambda_threshold: float):
+    def update_problem(
+        self,
+        Q: np.ndarray,
+        b: np.ndarray,
+        G: np.ndarray,
+        e: np.ndarray,
+        z_star: np.ndarray,
+        lambda_star: np.ndarray,
+        lambda_threshold: float,
+    ):
         # nu: lagrange multipliers of constraints that satisfy
         #  lambda_star > lambda_threshold
         nu_star = []
@@ -146,8 +159,15 @@ class QpDerivativesKktLstsq:
         self.z_star = np.array([])
         self.lambda_star = np.array([])
 
-    def update_problem(self, Q: np.ndarray, b: np.ndarray, G: np.ndarray,
-                       e:np.ndarray, z_star: np.ndarray, lambda_star: np.ndarray):
+    def update_problem(
+        self,
+        Q: np.ndarray,
+        b: np.ndarray,
+        G: np.ndarray,
+        e: np.ndarray,
+        z_star: np.ndarray,
+        lambda_star: np.ndarray,
+    ):
         n_z = len(z_star)
         n_lambda = len(lambda_star)
         assert Q.shape[1] == Q.shape[0] == n_z
@@ -183,18 +203,17 @@ class QpDerivativesKktLstsq:
 
 
 def build_qp_and_solve(
-        Q: np.ndarray, b: np.ndarray, G: np.ndarray, e: np.ndarray, solver):
+    Q: np.ndarray, b: np.ndarray, G: np.ndarray, e: np.ndarray, solver
+):
     n_z = Q.shape[0]
     n_lambda = G.shape[0]
 
     prog = mp.MathematicalProgram()
-    z = prog.NewContinuousVariables(n_z, 'z')
+    z = prog.NewContinuousVariables(n_z, "z")
     prog.AddQuadraticCost(Q, b, z)
     inequalities = prog.AddLinearConstraint(
-        A=G,
-        lb=-np.full(n_lambda, np.inf),
-        ub=e,
-        vars=z)
+        A=G, lb=-np.full(n_lambda, np.inf), ub=e, vars=z
+    )
     results = solver.Solve(prog)
     assert results.is_success()
 
@@ -211,8 +230,9 @@ class QpDerivativesNumerical:
         self.n_lambda = 0
         self.solver = solver
 
-    def update_problem(self, Q: np.ndarray, b: np.ndarray, G: np.ndarray,
-                       e: np.ndarray):
+    def update_problem(
+        self, Q: np.ndarray, b: np.ndarray, G: np.ndarray, e: np.ndarray
+    ):
         self.Q = Q
         self.b = b
         self.G = G
@@ -230,7 +250,8 @@ class QpDerivativesNumerical:
                 e_new[i] += epsilon * k
 
                 z_star_values[ki], _ = build_qp_and_solve(
-                    self.Q, self.b, self.G, e_new, self.solver)
+                    self.Q, self.b, self.G, e_new, self.solver
+                )
 
             DzDe[:, i] = (z_star_values[1] - z_star_values[0]) / epsilon / 2
 
@@ -246,7 +267,8 @@ class QpDerivativesNumerical:
                 b_new[i] += epsilon * k
 
                 z_star_values[ki], _ = build_qp_and_solve(
-                    self.Q, b_new, self.G, self.e, self.solver)
+                    self.Q, b_new, self.G, self.e, self.solver
+                )
 
             DzDb[:, i] = (z_star_values[1] - z_star_values[0]) / epsilon / 2
 
@@ -265,8 +287,10 @@ class QpDerivativesNumerical:
                     G_new[i, j] += epsilon * k
 
                     z_star_values[ki], _ = build_qp_and_solve(
-                        self.Q, self.b, G_new, self.e, self.solver)
+                        self.Q, self.b, G_new, self.e, self.solver
+                    )
 
-                DzDG_vec[:, idx] = ((z_star_values[1] - z_star_values[0])
-                                    / epsilon / 2)
+                DzDG_vec[:, idx] = (
+                    (z_star_values[1] - z_star_values[0]) / epsilon / 2
+                )
         return DzDG_vec

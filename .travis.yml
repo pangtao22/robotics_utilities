@@ -1,13 +1,13 @@
-dist: bionic
+dist: focal
 language: python
 python:
-  - "3.6"
+  - "3.8"
 
 env:
   global:
-  - PYTHONPATH="/opt/drake/lib/python3.6/site-packages"
+  - PYTHONPATH="/opt/drake/lib/python3.8/site-packages"
   matrix:
-  - DRAKE_URL="https://drake-packages.csail.mit.edu/drake/nightly/drake-latest-bionic.tar.gz"
+  - DRAKE_URL="https://drake-packages.csail.mit.edu/drake/nightly/drake-latest-focal.tar.gz"
 
 install:
   - curl -o drake.tar.gz $DRAKE_URL && sudo tar -xzf drake.tar.gz -C /opt

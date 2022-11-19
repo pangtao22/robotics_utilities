@@ -1,14 +1,19 @@
 import numpy as np
 
-from pydrake.systems.framework import (LeafSystem, BasicVector, PortDataType)
-from pydrake.multibody.tree import (MultibodyForces)
+from pydrake.systems.framework import LeafSystem, BasicVector, PortDataType
+from pydrake.multibody.tree import MultibodyForces
 
 from ..primitives.low_pass_filter import LowPassFilter
 
 
 class RobotInternalController(LeafSystem):
-    def __init__(self, plant_robot, joint_stiffness,
-                 controller_mode="impedance", name="robot_internal_controller"):
+    def __init__(
+        self,
+        plant_robot,
+        joint_stiffness,
+        controller_mode="impedance",
+        name="robot_internal_controller",
+    ):
         """
         Impedance controller implements the controller in Ott2008 for IIWA.
         Inverse dynamics controller makes use of drake's
@@ -24,33 +29,37 @@ class RobotInternalController(LeafSystem):
 
         self.nq = plant_robot.num_positions()
         self.nv = plant_robot.num_velocities()
-        self.robot_state_input_port = \
-            self.DeclareInputPort(
-                "robot_state", PortDataType.kVectorValued, self.nq + self.nv)
-        self.tau_feedforward_input_port = \
-            self.DeclareInputPort(
-                "tau_feedforward", PortDataType.kVectorValued, self.nq)
-        self.joint_angle_commanded_input_port = \
-            self.DeclareInputPort(
-                "q_robot_commanded", PortDataType.kVectorValued, self.nq)
-        self.joint_torque_output_port = \
-            self.DeclareVectorOutputPort(
-                "joint_torques", BasicVector(self.nv), self.CalcJointTorques)
+        self.robot_state_input_port = self.DeclareInputPort(
+            "robot_state", PortDataType.kVectorValued, self.nq + self.nv
+        )
+        self.tau_feedforward_input_port = self.DeclareInputPort(
+            "tau_feedforward", PortDataType.kVectorValued, self.nq
+        )
+        self.joint_angle_commanded_input_port = self.DeclareInputPort(
+            "q_robot_commanded", PortDataType.kVectorValued, self.nq
+        )
+        self.joint_torque_output_port = self.DeclareVectorOutputPort(
+            "joint_torques", BasicVector(self.nv), self.CalcJointTorques
+        )
 
         # control rate
         self.control_period = 2e-4  # 5000Hz.
         self.DeclareDiscreteState(self.nv)
-        self.DeclarePeriodicDiscreteUpdate(period_sec=self.control_period)
+        self.DeclarePeriodicDiscreteUpdateNoHandler(
+            period_sec=self.control_period
+        )
 
         # joint velocity estimator
         self.q_prev = None
         self.w_cutoff = 2 * np.pi * 400
         self.velocity_estimator = LowPassFilter(
-            self.nv, self.control_period, self.w_cutoff)
+            self.nv, self.control_period, self.w_cutoff
+        )
 
         # damping coefficient filter
         self.Kv_filter = LowPassFilter(
-            self.nq, self.control_period, 2 * np.pi * 1)
+            self.nq, self.control_period, 2 * np.pi * 1
+        )
 
         # controller gains
         assert len(joint_stiffness) == plant_robot.num_positions()
@@ -67,20 +76,21 @@ class RobotInternalController(LeafSystem):
 
     def DoCalcDiscreteVariableUpdates(self, context, events, discrete_state):
         LeafSystem.DoCalcDiscreteVariableUpdates(
-            self, context, events, discrete_state)
+            self, context, events, discrete_state
+        )
 
         # read input ports
         x = self.robot_state_input_port.Eval(context)
         q_cmd = self.joint_angle_commanded_input_port.Eval(context)
         tau_ff = self.tau_feedforward_input_port.Eval(context)
-        q = x[:self.nq]
-        v = x[self.nq:]
+        q = x[: self.nq]
+        v = x[self.nq :]
 
         # estimate velocity
         if self.q_prev is None:
             self.velocity_estimator.update(np.zeros(self.nv))
         else:
-        # low pass filter velocity.
+            # low pass filter velocity.
             v_diff = (q - self.q_prev) / self.control_period
             self.velocity_estimator.update(v_diff)
 
@@ -121,7 +131,8 @@ class RobotInternalController(LeafSystem):
             tau += self.plant.CalcInverseDynamics(
                 context=self.context,
                 known_vdot=qDDt_d,
-                external_forces=MultibodyForces(self.plant))
+                external_forces=MultibodyForces(self.plant),
+            )
 
         output = discrete_state.get_mutable_vector().get_mutable_value()
         output[:] = tau + tau_ff
@@ -130,4 +141,3 @@ class RobotInternalController(LeafSystem):
         state = context.get_discrete_state_vector().get_value()
         y = y_data.get_mutable_value()
         y[:] = state
-
