@@ -59,9 +59,9 @@ def create_iiwa_controller_plant(gravity, add_schunk_inertia=False):
             "wsg_equivalent", iiwa_model, calc_schunk_inertia()
         )
         plant.WeldFrames(
-            frame_on_parent_P=plant.GetFrameByName("iiwa_link_7", iiwa_model),
-            frame_on_child_C=wsg_equivalent.body_frame(),
-            X_PC=X_L7E,
+            frame_on_parent_F=plant.GetFrameByName("iiwa_link_7", iiwa_model),
+            frame_on_child_M=wsg_equivalent.body_frame(),
+            X_FM=X_L7E,
         )
 
     plant.Finalize()

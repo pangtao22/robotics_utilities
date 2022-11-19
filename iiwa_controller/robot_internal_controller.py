@@ -45,7 +45,9 @@ class RobotInternalController(LeafSystem):
         # control rate
         self.control_period = 2e-4  # 5000Hz.
         self.DeclareDiscreteState(self.nv)
-        self.DeclarePeriodicDiscreteUpdate(period_sec=self.control_period)
+        self.DeclarePeriodicDiscreteUpdateNoHandler(
+            period_sec=self.control_period
+        )
 
         # joint velocity estimator
         self.q_prev = None
@@ -55,7 +57,9 @@ class RobotInternalController(LeafSystem):
         )
 
         # damping coefficient filter
-        self.Kv_filter = LowPassFilter(self.nq, self.control_period, 2 * np.pi * 1)
+        self.Kv_filter = LowPassFilter(
+            self.nq, self.control_period, 2 * np.pi * 1
+        )
 
         # controller gains
         assert len(joint_stiffness) == plant_robot.num_positions()
@@ -71,7 +75,9 @@ class RobotInternalController(LeafSystem):
         self.sample_times = []
 
     def DoCalcDiscreteVariableUpdates(self, context, events, discrete_state):
-        LeafSystem.DoCalcDiscreteVariableUpdates(self, context, events, discrete_state)
+        LeafSystem.DoCalcDiscreteVariableUpdates(
+            self, context, events, discrete_state
+        )
 
         # read input ports
         x = self.robot_state_input_port.Eval(context)
