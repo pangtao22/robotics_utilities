@@ -2,15 +2,16 @@ import numpy as np
 
 from pydrake.systems.framework import LeafSystem, BasicVector, PortDataType
 from pydrake.multibody.tree import MultibodyForces
-
+from pydrake.all import MultibodyPlant
 from ..primitives.low_pass_filter import LowPassFilter
 
 
 class RobotInternalController(LeafSystem):
     def __init__(
         self,
-        plant_robot,
-        joint_stiffness,
+        plant_robot: MultibodyPlant,
+        joint_stiffness: np.ndarray,
+        joint_damping: np.ndarray = None,
         controller_mode="impedance",
         name="robot_internal_controller",
     ):
@@ -21,6 +22,11 @@ class RobotInternalController(LeafSystem):
         :param plant_robot:
         :param joint_stiffness: (nq,) numpy array which defines the stiffness
             of all joints.
+        :param joint_damping: (nq,) numpy array which defines the damping
+            of all joints.
+            If None, a fixed critically-damped value is used.
+            In impedance mode, damping changes with the diagonal of the mass
+            matrix.
         """
         LeafSystem.__init__(self)
         self.set_name(name)
@@ -56,7 +62,8 @@ class RobotInternalController(LeafSystem):
             self.nv, self.control_period, self.w_cutoff
         )
 
-        # damping coefficient filter
+        self.Kv = joint_damping
+        # damping coefficient LPF (if adaptive critical damping is used.)
         self.Kv_filter = LowPassFilter(
             self.nq, self.control_period, 2 * np.pi * 1
         )
@@ -64,8 +71,6 @@ class RobotInternalController(LeafSystem):
         # controller gains
         assert len(joint_stiffness) == plant_robot.num_positions()
         self.Kp = joint_stiffness
-        self.damping_ratio = 1.0
-        self.Kv = 2 * self.damping_ratio * np.sqrt(self.Kp)
         self.controller_mode = controller_mode
 
         # logs
@@ -102,21 +107,14 @@ class RobotInternalController(LeafSystem):
 
         # update plant context
         self.plant.SetPositions(self.context, q)
-        # self.plant.SetVelocities(self.context, v_est)
+        self.plant.SetVelocities(self.context, v_est)
 
         # gravity compenstation
         tau_g = self.plant.CalcGravityGeneralizedForces(self.context)
         tau = -tau_g
 
         if self.controller_mode == "impedance":
-            M = self.plant.CalcMassMatrixViaInverseDynamics(self.context)
-
-            # m = np.sort(np.linalg.eig(M)[0])[::-1]
-            m = M.diagonal()
-            Kv = 2 * self.damping_ratio * np.sqrt(self.Kp * m)
-            self.Kv_filter.update(Kv)
-            Kv = self.Kv_filter.get_current_state()
-            # Kv = np.array([100, 100, 100, 100., 1., 1, 1])
+            Kv = self.CalcDamping(damping_ratio=1.0)
             tau_stiffness = self.Kp * (q_cmd - q)
             tau_damping = -Kv * v
             tau += tau_damping + tau_stiffness
@@ -127,7 +125,8 @@ class RobotInternalController(LeafSystem):
 
         elif self.controller_mode == "inverse_dynamics":
             # compute desired acceleration
-            qDDt_d = self.Kp * (q_cmd - q) + self.Kv * (-v_est)
+            Kv = self.CalcDamping(damping_ratio=1.0)
+            qDDt_d = self.Kp * (q_cmd - q) + Kv * (-v_est)
             tau += self.plant.CalcInverseDynamics(
                 context=self.context,
                 known_vdot=qDDt_d,
@@ -141,3 +140,17 @@ class RobotInternalController(LeafSystem):
         state = context.get_discrete_state_vector().get_value()
         y = y_data.get_mutable_value()
         y[:] = state
+
+    def CalcDamping(self, damping_ratio: float):
+        if self.controller_mode == "inverse_dynamics":
+            return 2 * damping_ratio * np.sqrt(self.Kp)
+
+        assert self.controller_mode == "impedance"
+        if self.Kv:
+            return self.Kv
+
+        M = self.plant.CalcMassMatrixViaInverseDynamics(self.context)
+        m = M.diagonal()
+        Kv = 2 * damping_ratio * np.sqrt(self.Kp * m)
+        self.Kv_filter.update(Kv)
+        return self.Kv_filter.get_current_state()

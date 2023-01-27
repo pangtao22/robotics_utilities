@@ -1,5 +1,7 @@
 import unittest
 
+import numpy as np
+
 from .sim_setup import *
 from pydrake.all import VectorLog, JacobianWrtVariable
 
@@ -11,8 +13,8 @@ class TestIiwaStaticLoad(unittest.TestCase):
         # force at C.
         self.f_C_W = np.array([0, 0, -20])
         # Stiffness matrix of the robot.
-        self.Kp_iiwa = np.array([800., 600, 600, 600, 400, 200, 200])
-        self.gravity = np.array([0, 0, -10.])
+        self.Kp_iiwa = np.array([800.0, 600, 600, 600, 400, 200, 200])
+        self.gravity = np.array([0, 0, -10.0])
 
         # robot trajectory (hold q0).
         q0 = np.array([0, 0, 0, -1.70, 0, 1.0, 0])
@@ -21,11 +23,13 @@ class TestIiwaStaticLoad(unittest.TestCase):
         q_iiwa_knots[1] = q0
 
         # run simulation for 1s.
-        self.qa_traj = PiecewisePolynomial.FirstOrderHold([0, 1],
-                                                          q_iiwa_knots.T)
+        self.qa_traj = PiecewisePolynomial.FirstOrderHold(
+            [0, 1], q_iiwa_knots.T
+        )
 
-    def check_sim_results(self, iiwa_log: VectorLog, plant: MultibodyPlant,
-                          tau_tolerance: float):
+    def check_sim_results(
+        self, iiwa_log: VectorLog, plant: MultibodyPlant, tau_tolerance: float
+    ):
         # check simulation results.
         q_iiwa = iiwa_log.data().T[:, :7]
         v_iiwa = iiwa_log.data().T[:, 7:]
@@ -38,7 +42,8 @@ class TestIiwaStaticLoad(unittest.TestCase):
             frame_B=plant.GetFrameByName("iiwa_link_7"),
             p_BoBi_B=self.p_L7oC_L7,
             frame_A=plant.world_frame(),
-            frame_E=plant.world_frame())
+            frame_E=plant.world_frame(),
+        )
 
         delta_q = q_iiwa[-1] - q_iiwa[0]
         tau_dq = delta_q * self.Kp_iiwa
@@ -55,10 +60,12 @@ class TestIiwaStaticLoad(unittest.TestCase):
             gravity=self.gravity,
             f_C_W=self.f_C_W,
             time_step=1e-5,
-            add_schunk=False)
+            add_schunk=False,
+        )
 
-        self.check_sim_results(iiwa_log, controller_iiwa.plant,
-                               tau_tolerance=1e-5)
+        self.check_sim_results(
+            iiwa_log, controller_iiwa.plant, tau_tolerance=1e-5
+        )
 
     def test_static_load_schunk(self):
         iiwa_log, controller_iiwa = run_sim(
@@ -67,11 +74,23 @@ class TestIiwaStaticLoad(unittest.TestCase):
             gravity=self.gravity,
             f_C_W=self.f_C_W,
             time_step=1e-5,
-            add_schunk=True)
+            add_schunk=True,
+        )
 
-        self.check_sim_results(iiwa_log, controller_iiwa.plant,
-                               tau_tolerance=2e-3)
+        self.check_sim_results(
+            iiwa_log, controller_iiwa.plant, tau_tolerance=2e-3
+        )
+
+    def test_calc_damping(self):
+        Kv = np.array([100, 100, 100, 100, 1, 1, 1.0])
+        plant = create_iiwa_controller_plant(gravity=self.gravity)
+        controller = RobotInternalController(
+            plant_robot=plant,
+            joint_stiffness=self.Kp_iiwa,
+            joint_damping=Kv,
+        )
+        np.testing.assert_allclose(Kv, controller.CalcDamping(0.1))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
