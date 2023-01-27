@@ -83,7 +83,7 @@ class TestIiwaStaticLoad(unittest.TestCase):
 
     def test_calc_damping(self):
         Kv = np.array([100, 100, 100, 100, 1, 1, 1.0])
-        plant = create_iiwa_controller_plant(gravity=self.gravity)
+        plant = create_iiwa_controller_plant(gravity=self.gravity)[0]
         controller = RobotInternalController(
             plant_robot=plant,
             joint_stiffness=self.Kp_iiwa,

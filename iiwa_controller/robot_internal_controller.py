@@ -146,7 +146,7 @@ class RobotInternalController(LeafSystem):
             return 2 * damping_ratio * np.sqrt(self.Kp)
 
         assert self.controller_mode == "impedance"
-        if self.Kv:
+        if self.Kv is not None:
             return self.Kv
 
         M = self.plant.CalcMassMatrixViaInverseDynamics(self.context)
