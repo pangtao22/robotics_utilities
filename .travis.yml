@@ -1,17 +1,9 @@
-dist: focal
+dist: jammy
 language: python
 python:
-  - "3.8"
-
-env:
-  global:
-  - PYTHONPATH="/opt/drake/lib/python3.8/site-packages"
-  matrix:
-  - DRAKE_URL="https://drake-packages.csail.mit.edu/drake/nightly/drake-latest-focal.tar.gz"
+  - "3.10"
 
 install:
-  - curl -o drake.tar.gz $DRAKE_URL && sudo tar -xzf drake.tar.gz -C /opt
-  - yes | sudo /opt/drake/share/drake/setup/install_prereqs
   - pip install -r requirements.txt
 
 script:
