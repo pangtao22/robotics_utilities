@@ -6,11 +6,11 @@ on:
     branches:
       - main
   schedule:
-    - cron: "0 6 * * *"  # 6am everyday.
+    - cron: "0 6 * * SUN"  # 6am on Sundays.
 
 jobs:
   test:
-    runs-on: ubuntu-jammy
+    runs-on: ubuntu-22.04
     defaults:
       run:
         shell: bash
