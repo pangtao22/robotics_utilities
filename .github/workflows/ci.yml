@@ -1,0 +1,30 @@
+name: CI
+on:
+  # By default, this workflow is not triggered when a PR is merged.
+  pull_request:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "0 6 * * SUN"  # 6am on Sundays.
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - name: install python packages
+        run: pip install -r requirements.txt
+      - name: test
+        run: pytest .
+
