@@ -1,5 +1,5 @@
 import numpy as np
-import pydrake.solvers.mathematicalprogram as mp
+from pydrake.solvers import MathematicalProgram
 from scipy.sparse import csc_matrix
 from scipy.sparse.linalg import lsqr
 
@@ -208,7 +208,7 @@ def build_qp_and_solve(
     n_z = Q.shape[0]
     n_lambda = G.shape[0]
 
-    prog = mp.MathematicalProgram()
+    prog = MathematicalProgram()
     z = prog.NewContinuousVariables(n_z, "z")
     prog.AddQuadraticCost(Q, b, z)
     inequalities = prog.AddLinearConstraint(
