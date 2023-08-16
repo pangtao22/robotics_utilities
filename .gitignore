@@ -5,3 +5,4 @@
 *.ipynb
 *.pyc
 .pytest_cache
+.venv
