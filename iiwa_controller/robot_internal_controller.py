@@ -3,7 +3,7 @@ import numpy as np
 from pydrake.systems.framework import LeafSystem, BasicVector, PortDataType
 from pydrake.multibody.tree import MultibodyForces
 from pydrake.all import MultibodyPlant
-from ..primitives.low_pass_filter import LowPassFilter
+from primitives import low_pass_filter
 
 
 class RobotInternalController(LeafSystem):
@@ -58,13 +58,13 @@ class RobotInternalController(LeafSystem):
         # joint velocity estimator
         self.q_prev = None
         self.w_cutoff = 2 * np.pi * 400
-        self.velocity_estimator = LowPassFilter(
+        self.velocity_estimator = low_pass_filter.LowPassFilter(
             self.nv, self.control_period, self.w_cutoff
         )
 
         self.Kv = joint_damping
         # damping coefficient LPF (if adaptive critical damping is used.)
-        self.Kv_filter = LowPassFilter(
+        self.Kv_filter = low_pass_filter.LowPassFilter(
             self.nq, self.control_period, 2 * np.pi * 1
         )
 

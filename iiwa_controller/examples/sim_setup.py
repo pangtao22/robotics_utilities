@@ -7,6 +7,9 @@ from pydrake.all import (
     RigidTransform,
     VectorLogSink,
     LogVectorOutput,
+    StartMeshcat,
+    MeshcatVisualizer,
+    ContactVisualizer,
 )
 from pydrake.trajectories import PiecewisePolynomial
 from pydrake.systems.framework import DiagramBuilder
@@ -25,6 +28,7 @@ def run_sim(
     time_step,
     add_schunk: bool,
     is_visualizing=False,
+    meshcat=None,
 ):
     # Build diagram.
     builder = DiagramBuilder()
@@ -57,6 +61,7 @@ def run_sim(
 
     plant.Finalize()
 
+
     # IIWA controller
     plant_robot, _ = create_iiwa_controller_plant(
         gravity, add_schunk_inertia=add_schunk
@@ -84,15 +89,25 @@ def run_sim(
         controller_iiwa.joint_angle_commanded_input_port,
     )
 
-    # meshcat visualizer
-    if is_visualizing:
-        # TODO: implement visualization with drake's new meshcat visualizer.
-        pass
 
     # Logs
     iiwa_log_sink = LogVectorOutput(
         plant.get_state_output_port(iiwa_model), builder, publish_period=0.001
     )
+
+    # visualizer
+    if is_visualizing:
+        if meshcat is None:
+            meshcat = StartMeshcat()
+        meshcat_vis = MeshcatVisualizer.AddToBuilder(
+            builder, scene_graph, meshcat
+        )
+        ContactVisualizer.AddToBuilder(
+            builder,
+            plant,
+            meshcat,
+        )
+
     diagram = builder.Build()
 
     # %% Run simulation.
@@ -120,10 +135,18 @@ def run_sim(
     easf.body_index = plant.GetBodyByName("iiwa_link_7").index()
     plant.get_applied_spatial_force_input_port().FixValue(context_plant, [easf])
 
-    # %%
+    # meshcat visualizer
+    if is_visualizing:
+        meshcat_vis.DeleteRecording()
+        meshcat_vis.StartRecording()
+
     sim.Initialize()
     sim.set_target_realtime_rate(0)
     sim.AdvanceTo(t_final)
 
+    # meshcat visualizer
+    if is_visualizing:
+        meshcat_vis.PublishRecording()
+
     iiwa_log = iiwa_log_sink.FindLog(context)
-    return iiwa_log, controller_iiwa
+    return iiwa_log, controller_iiwa, builder
