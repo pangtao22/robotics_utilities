@@ -1,45 +1,46 @@
-digraph _139736358394320 {
+digraph _94454293435728 {
 rankdir=LR
-subgraph cluster139736358394320diagram {
+subgraph cluster94454293435728diagram {
 color=black
 concentrate=true
-label="139736358394320";
-subgraph cluster139736358394320inputports {
+label="94454293435728";
+subgraph cluster94454293435728inputports {
 rank=same
 color=lightgrey
 style=filled
 label="input ports"
 }
-subgraph cluster139736358394320outputports {
+subgraph cluster94454293435728outputports {
 rank=same
 color=lightgrey
 style=filled
 label="output ports"
 }
-subgraph cluster139736358394320subsystems {
+subgraph cluster94454293435728subsystems {
 color=white
 label=""
-94908164284912 [shape=record, label="plant|{{<u0>geometry_query|<u1>WorldModelInstance_actuation|<u2>DefaultModelInstance_actuation|<u3>iiwa_actuation|<u4>actuation|<u5>applied_generalized_force|<u6>applied_spatial_force} | {<y0>geometry_pose|<y1>state|<y2>body_poses|<y3>spatial_velocities|<y4>spatial_accelerations|<y5>generalized_acceleration|<y6>WorldModelInstance_state|<y7>WorldModelInstance_generalized_acceleration|<y8>DefaultModelInstance_state|<y9>DefaultModelInstance_generalized_acceleration|<y10>iiwa_state|<y11>iiwa_generalized_acceleration|<y12>WorldModelInstance_generalized_contact_forces|<y13>DefaultModelInstance_generalized_contact_forces|<y14>iiwa_generalized_contact_forces|<y15>reaction_forces|<y16>contact_results}}"];
-94908164156736 [shape=record, label="scene_graph|{{<u0>plant_pose|<u1>plant_configuration} | {<y0>query}}"];
-94908165625488 [shape=record, label="robot_internal_controller|{{<u0>robot_state|<u1>tau_feedforward|<u2>q_robot_commanded} | {<y0>joint_torques}}"];
-94908164115536 [shape=record, label="drake/systems/TrajectorySource@0000565187688c50|{{} | {<y0>y0}}"];
-94908160695536 [shape=record, label="drake/systems/VectorLogSink@0000565187345cf0|{{<u0>data} | {}}"];
-94908167608912 [shape=record, label="meshcat_visualizer(visualizer)|{{<u0>query_object} | {}}"];
-94908165252480 [shape=record, label="meshcat_contact_visualizer|{{<u0>contact_results|<u1>query_object} | {}}"];
-94908164229664 [shape=record, label="UTrajectorySource|{{} | {<y0>y0}}"];
-94908163393168 [shape=record, label="QTrajectorySource|{{} | {<y0>y0}}"];
-94908168923552 [shape=record, label="retargeting_controller|{{<u0>q_ref|<u1>u_ref|<u2>q} | {<y0>$$$_cmd}}"];
-94908164284912:y10 -> 94908160695536:u0;
-94908164284912:y0 -> 94908164156736:u0;
-94908164156736:y0 -> 94908164284912:u0;
-94908165625488:y0 -> 94908164284912:u3;
-94908164284912:y16 -> 94908165252480:u0;
-94908164156736:y0 -> 94908165252480:u1;
-94908164284912:y10 -> 94908165625488:u0;
-94908168923552:y0 -> 94908165625488:u2;
-94908164156736:y0 -> 94908167608912:u0;
-94908163393168:y0 -> 94908168923552:u0;
-94908164229664:y0 -> 94908168923552:u1;
+94454293445264 [shape=record, label="plant|{{<u0>geometry_query|<u1>WorldModelInstance_actuation|<u2>DefaultModelInstance_actuation|<u3>iiwa_actuation|<u4>actuation|<u5>applied_generalized_force|<u6>applied_spatial_force} | {<y0>geometry_pose|<y1>state|<y2>body_poses|<y3>spatial_velocities|<y4>spatial_accelerations|<y5>generalized_acceleration|<y6>WorldModelInstance_state|<y7>WorldModelInstance_generalized_acceleration|<y8>DefaultModelInstance_state|<y9>DefaultModelInstance_generalized_acceleration|<y10>iiwa_state|<y11>iiwa_generalized_acceleration|<y12>WorldModelInstance_generalized_contact_forces|<y13>DefaultModelInstance_generalized_contact_forces|<y14>iiwa_generalized_contact_forces|<y15>reaction_forces|<y16>contact_results}}"];
+94454304837488 [shape=record, label="scene_graph|{{<u0>plant_pose|<u1>plant_configuration} | {<y0>query}}"];
+94454284208592 [shape=record, label="robot_internal_controller|{{<u0>robot_state|<u1>tau_feedforward|<u2>q_robot_commanded} | {<y0>joint_torques}}"];
+94454286228592 [shape=record, label="drake/systems/TrajectorySource@000055e7da2d9c70|{{} | {<y0>y0}}"];
+94454284459072 [shape=record, label="drake/systems/VectorLogSink@000055e7da129c40|{{<u0>data} | {}}"];
+94454291872240 [shape=record, label="meshcat_visualizer(visualizer)|{{<u0>query_object} | {}}"];
+94454284790688 [shape=record, label="meshcat_contact_visualizer|{{<u0>contact_results|<u1>query_object} | {}}"];
+94454303779472 [shape=record, label="UTrajectorySource|{{} | {<y0>y0}}"];
+94454284812208 [shape=record, label="QTrajectorySource|{{} | {<y0>y0}}"];
+94454284580864 [shape=record, label="retargeting_controller|{{<u0>q_ref|<u1>u_ref|<u2>robot_state} | {<y0>$$$_cmd}}"];
+94454293445264:y10 -> 94454284208592:u0;
+94454284580864:y0 -> 94454284208592:u2;
+94454293445264:y10 -> 94454284459072:u0;
+94454284812208:y0 -> 94454284580864:u0;
+94454303779472:y0 -> 94454284580864:u1;
+94454293445264:y10 -> 94454284580864:u2;
+94454293445264:y16 -> 94454284790688:u0;
+94454304837488:y0 -> 94454284790688:u1;
+94454304837488:y0 -> 94454291872240:u0;
+94454304837488:y0 -> 94454293445264:u0;
+94454284208592:y0 -> 94454293445264:u3;
+94454293445264:y0 -> 94454304837488:u0;
 }
 }
 }

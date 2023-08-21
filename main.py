@@ -37,6 +37,11 @@ meshcat = StartMeshcat()
 # follow a synthetic trajectory in joint space
 # use the retargeting trick to make the robot "soft"
     # fix diagram
+    # big cleanup
+    # think about expansions:
+        # controller plant vs mock plant
+        # add end-effector, ground, multiple robots, objects
+        # record and display data
     # fix issue with the single target q vs trajectory of target qs
     # integrate the retargeting controller with the system {IIWA controller + IIWA robot}
 # load a trajectory form MJPC 
@@ -95,6 +100,7 @@ class RetargetingControllerParams:
                  joint_stiffness: np.array,
                  control_period: float,
                  nq: int,
+                 nv: int,
                  nu: int,
                  ):
         assert np.all(desired_joint_stiffness <= joint_stiffness)
@@ -102,6 +108,7 @@ class RetargetingControllerParams:
         self.joint_stiffness = joint_stiffness
         self.control_period = control_period    
         self.nq = nq
+        self.nv = nv
         self.nu = nu
 
 # %%
@@ -179,9 +186,9 @@ class RetargetingControllerSystem(LeafSystem):
             controller_params.nu,
         )
 
-        self.q_input_port = self.DeclareInputPort(
-            "q", PortDataType.kVectorValued, 
-            controller_params.nq,
+        self.robot_state_input_port = self.DeclareInputPort(
+            "robot_state", PortDataType.kVectorValued, 
+            controller_params.nq + controller_params.nv,
         )
 
         self.position_cmd_output_ports = {}
@@ -199,7 +206,7 @@ class RetargetingControllerSystem(LeafSystem):
         q_goal = self.q_ref_input_port.Eval(context)
         u_goal = self.u_ref_input_port.Eval(context)
 
-        q = self.q_input_port.Eval(context)
+        robot_state = self.robot_state_input_port.Eval(context)
     
         (
             q_nominal,
@@ -211,7 +218,7 @@ class RetargetingControllerSystem(LeafSystem):
         u = self.controller.calc_u(
             q_nominal=q_nominal,
             u_nominal=u_nominal,
-            q=q,
+            robot_state=robot_state,
             q_goal=q_goal,
             u_goal=u_goal,
         )
@@ -223,6 +230,7 @@ class RetargetingControllerSystem(LeafSystem):
 def add_controller_system_to_diagram(
     builder: DiagramBuilder,
     controller_iiwa,
+    iiwa_model,
     t_knots: np.ndarray,
     u_knots_ref: np.ndarray,
     q_knots_ref: np.ndarray,
@@ -262,6 +270,9 @@ def add_controller_system_to_diagram(
     # Make connections.
     builder.Connect(trj_src_q.get_output_port(), q_controller.q_ref_input_port)
     builder.Connect(trj_src_u.get_output_port(), q_controller.u_ref_input_port)
+    builder.Connect(
+        plant.get_state_output_port(iiwa_model),
+        q_controller.robot_state_input_port)
 
 
     # cmd_v2l = CommandVec2LcmSystem(q_sim)
@@ -382,7 +393,7 @@ def run_sim(
     is_visualizing=False,
     ):
 
-    diagram = builder.Build()
+    # diagram = builder.Build()
 
     # Run simulation.
     sim = Simulator(diagram)
@@ -467,6 +478,7 @@ desired_joint_stiffness = np.array([1,1,1,1,1,1,1.0])
 joint_stiffness = np.array([800.0, 600, 600, 600, 400, 200, 200])
 control_period = 0.001
 nq = 7
+nv = 7
 nu = 7
 
 q_nominal = np.array([1,1,1,1,1,1,1.0])
@@ -476,7 +488,7 @@ u_goal = np.array([1,1,1,1,1,1,1.0])
 q = np.array([1,1,1,1,1,1,1.0])
  
 controller_params = RetargetingControllerParams(
-    desired_joint_stiffness, joint_stiffness, control_period, nq, nu)
+    desired_joint_stiffness, joint_stiffness, control_period, nq, nv, nu)
 controller = RetargetingController(q_nominal, u_nominal, controller_params)
 controller_system = RetargetingControllerSystem(q_nominal, u_nominal, controller_params)
 
@@ -487,6 +499,7 @@ controller.find_closest_on_nominal_path(q)
 q_controller, q_ref_trj, u_ref_trj = add_controller_system_to_diagram(
     builder,
     controller_iiwa,
+    iiwa_model,
     t_knots,
     u_knots_ref,
     q_knots_ref,
@@ -497,6 +510,25 @@ q_controller, q_ref_trj, u_ref_trj = add_controller_system_to_diagram(
 
 diagram = builder.Build()
 render_system_with_graphviz(diagram, "controller_hardware.gz")
+
+# %%
+
+
+
+
+
+iiwa_log, controller_iiwa = run_sim(
+    builder, 
+    controller_iiwa, 
+    iiwa_model, 
+    iiwa_log_sink,
+    plant, 
+    meshcat_vis,
+    q_traj_iiwa=tester.qa_traj,
+    f_C_W=tester.f_C_W,
+    add_schunk=False,
+    is_visualizing=True,
+    )
 
 # # Run simulation.
 # sim = Simulator(diagram)
@@ -586,20 +618,6 @@ render_system_with_graphviz(diagram, "controller_hardware.gz")
 
 
 
-
-
-# iiwa_log, controller_iiwa = run_sim(
-#     builder, 
-#     controller_iiwa, 
-#     iiwa_model, 
-#     iiwa_log_sink,
-#     plant, 
-#     meshcat_vis,
-#     q_traj_iiwa=tester.qa_traj,
-#     f_C_W=tester.f_C_W,
-#     add_schunk=False,
-#     is_visualizing=True,
-#     )
 
 
 # %%
