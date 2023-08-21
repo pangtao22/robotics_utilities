@@ -123,7 +123,7 @@ class RetargetingController:
         self,
         q_nominal: np.ndarray, # nominal configuration trajectory, not used 
         u_nominal: np.ndarray, # nominal control trajectory
-        q: np.ndarray, # current configuration
+        robot_state: np.ndarray, # current configuration and velocity
         q_goal: np.ndarray, # goal configuration, not used 
         u_goal: np.ndarray, # goal control, not used
     ):
@@ -136,6 +136,13 @@ class RetargetingController:
         # {IIWA controller + IIWA robot} plant. 
         # Controls are configuration targets for the IIWA internal controller 
         # to track with very high stiffness.
+
+        nq = np.shape(q_nominal)[0]
+        print("calc_u nq = ", nq)
+        q = robot_state[:nq]
+        v = robot_state[nq:]
+        print("calc_u q = ", np.shape(q))
+        print("calc_u v = ", np.shape(v))
 
         # retargeted configuration
         desired_joint_stiffness = self.controller_params.desired_joint_stiffness
@@ -350,8 +357,9 @@ def build_sim(
     )
 
     # IIWA Trajectory source
-    traj_source_iiwa = TrajectorySource(q_traj_iiwa)
-    builder.AddSystem(traj_source_iiwa)
+    print("removed old trajectory source")
+    # traj_source_iiwa = TrajectorySource(q_traj_iiwa)
+    # builder.AddSystem(traj_source_iiwa)
     print("disconnected controller_iiwa input port")
     # builder.Connect(
     #     traj_source_iiwa.get_output_port(0),
@@ -485,7 +493,7 @@ q_nominal = np.array([1,1,1,1,1,1,1.0])
 u_nominal = np.array([1,1,1,1,1,1,1.0])
 q_goal = np.array([1,1,1,1,1,1,1.0])
 u_goal = np.array([1,1,1,1,1,1,1.0])
-q = np.array([1,1,1,1,1,1,1.0])
+robot_state = np.array([1,1,1,1,1,1,1, 0,0,0,0,0,0,0])
  
 controller_params = RetargetingControllerParams(
     desired_joint_stiffness, joint_stiffness, control_period, nq, nv, nu)
@@ -493,7 +501,7 @@ controller = RetargetingController(q_nominal, u_nominal, controller_params)
 controller_system = RetargetingControllerSystem(q_nominal, u_nominal, controller_params)
 
 
-u_retargeted = controller.calc_u(q_nominal, u_nominal, q, q_goal, u_goal)
+u_retargeted = controller.calc_u(q_nominal, u_nominal, robot_state, q_goal, u_goal)
 controller.find_closest_on_nominal_path(q)
 
 q_controller, q_ref_trj, u_ref_trj = add_controller_system_to_diagram(
