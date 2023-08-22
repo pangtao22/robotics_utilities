@@ -51,8 +51,10 @@ class RobotInternalController(LeafSystem):
         # control rate
         self.control_period = 2e-4  # 5000Hz.
         self.DeclareDiscreteState(self.nv)
-        self.DeclarePeriodicDiscreteUpdateNoHandler(
-            period_sec=self.control_period
+        self.DeclarePeriodicDiscreteUpdateEvent(
+            period_sec=self.control_period,
+            offset_sec=0.0,
+            update=self.Update
         )
 
         # joint velocity estimator
@@ -79,11 +81,7 @@ class RobotInternalController(LeafSystem):
         self.tau_damping_log = []
         self.sample_times = []
 
-    def DoCalcDiscreteVariableUpdates(self, context, events, discrete_state):
-        LeafSystem.DoCalcDiscreteVariableUpdates(
-            self, context, events, discrete_state
-        )
-
+    def Update(self, context, discrete_state):
         # read input ports
         x = self.robot_state_input_port.Eval(context)
         q_cmd = self.joint_angle_commanded_input_port.Eval(context)

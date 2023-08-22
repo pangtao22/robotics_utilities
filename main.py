@@ -175,8 +175,10 @@ class RetargetingControllerSystem(LeafSystem):
         self.set_name("retargeting_controller")
         # Periodic state update
         self.control_period = controller_params.control_period
-        self.DeclarePeriodicDiscreteUpdateNoHandler(
-            period_sec=self.control_period)
+        self.DeclarePeriodicDiscreteUpdateEvent(
+            period_sec=self.control_period,
+            offset_sec=0.0,
+            update=self.Update)
 
         # The object configuration is declared as part of the state, but not
         # used, so that indexing becomes easier.
@@ -217,8 +219,7 @@ class RetargetingControllerSystem(LeafSystem):
             BasicVector(controller_params.nq), 
             calc_output)
 
-    def DoCalcDiscreteVariableUpdates(self, context, events, discrete_state):
-        super().DoCalcDiscreteVariableUpdates(context, events, discrete_state)
+    def Update(self, context, discrete_state):
         q_goal = self.q_ref_input_port.Eval(context)
         u_goal = self.u_ref_input_port.Eval(context)
         robot_state = self.robot_state_input_port.Eval(context)
@@ -424,12 +425,18 @@ def my_run_sim(
         context_controller, np.zeros(7)
     )
 
+    q_iiwa_0 = q_traj_iiwa.value(0).squeeze()
+
+    retargeting_controller = diagram.GetSubsystemByName(
+        "retargeting_controller")
+    context_rc = retargeting_controller.GetMyContextFromRoot(context)
+    context_rc.SetDiscreteState(q_iiwa_0)
+
     # plant.get_actuation_input_port(iiwa_model).FixValue(
     #     context_plant, 1* np.ones(7)
     # )
 
     # robot initial configuration.
-    q_iiwa_0 = q_traj_iiwa.value(0).squeeze()
     # print("################### q_iiwa_0 = ", q_iiwa_0)
     t_final = q_traj_iiwa.end_time()
     plant.SetPositions(context_plant, iiwa_model, q_iiwa_0)
