@@ -62,18 +62,18 @@ meshcat = StartMeshcat()
 
 # %%
 
-def sine_trajectory(horizon, N=100):
-    q0 = np.array([+0.0, -0.0, 0, -1.70, 0, -1.0, 0])
-    q1 = np.array([+np.pi, +0.0, 0, -1.70, 0, -1.0, 0])
-    q_iiwa_knots = np.zeros((N, 7))
-    for i in range(N):
-        q_iiwa_knots[i] = q0 + (q1 - q0) * (-np.cos(2*np.pi * i / (N-1)) + 1) / 2
-    t_iiwa_knots = np.array([horizon * i / (N-1) for i in range(N)])
-    return q_iiwa_knots, t_iiwa_knots
+# def sine_trajectory(horizon, N=100):
+#     q0 = np.array([+0.0, -0.0, 0, -1.70, 0, -1.0, 0])
+#     q1 = np.array([+np.pi, +0.0, 0, -1.70, 0, -1.0, 0])
+#     q_iiwa_knots = np.zeros((N, 7))
+#     for i in range(N):
+#         q_iiwa_knots[i] = q0 + (q1 - q0) * (-np.cos(2*np.pi * i / (N-1)) + 1) / 2
+#     t_iiwa_knots = np.array([horizon * i / (N-1) for i in range(N)])
+#     return q_iiwa_knots, t_iiwa_knots
 
 def linear_trajectory(horizon, N=100):
-    q0 = np.array([+0.0, +0.0,   0, -1.70, 0, -1.0, 0])
-    q1 = np.array([+0.0, +np.pi, 0, -1.70, 0, -1.0, 0])
+    q0 = np.array([+0.0, +0*np.pi,   0, -1.70, 0, -1.0, 0])
+    q1 = np.array([+0.0, +0*np.pi, 0, -1.70, 0, -1.0, 0])
     q_iiwa_knots = np.zeros((N, 7))
     for i in range(N):
         q_iiwa_knots[i] = q0 + (q1 - q0) * i / (N-1)
@@ -137,17 +137,23 @@ class RetargetingController:
         # Controls are configuration targets for the IIWA internal controller 
         # to track with very high stiffness.
 
-        nq = np.shape(q_nominal)[0]
-        print("calc_u nq = ", nq)
+        nq = self.controller_params.nq
         q = robot_state[:nq]
         v = robot_state[nq:]
-        print("calc_u q = ", np.shape(q))
-        print("calc_u v = ", np.shape(v))
+        # print("calc_u q_nominal = ", np.shape(q_nominal))
+        # print("calc_u u_nominal = ", np.shape(u_nominal))
+        # print("calc_u q_goal = ", np.shape(q_goal))
+        # print("calc_u u_goal = ", np.shape(u_goal))
+        # print("calc_u robot_state = ", np.shape(robot_state))
+        # print("calc_u q = ", np.shape(q))
+        # print("calc_u v = ", np.shape(v))
 
         # retargeted configuration
         desired_joint_stiffness = self.controller_params.desired_joint_stiffness
         joint_stiffness = self.controller_params.joint_stiffness
         u_retargeted = q + desired_joint_stiffness / joint_stiffness * (u_nominal - q)
+        # print("u_retargeted = set to current q")
+        u_retargeted = q
         return u_retargeted
 
     def find_closest_on_nominal_path(self, q):
@@ -169,7 +175,8 @@ class RetargetingControllerSystem(LeafSystem):
         self.set_name("retargeting_controller")
         # Periodic state update
         self.control_period = controller_params.control_period
-        self.DeclarePeriodicDiscreteUpdateNoHandler(self.control_period)
+        self.DeclarePeriodicDiscreteUpdateNoHandler(
+            period_sec=self.control_period)
 
         # The object configuration is declared as part of the state, but not
         # used, so that indexing becomes easier.
@@ -177,7 +184,6 @@ class RetargetingControllerSystem(LeafSystem):
         self.controller = RetargetingController(
             q_nominal=q_nominal,
             u_nominal=u_nominal,
-            # q_sim=q_sim_q_control,
             controller_params=controller_params,
         )
 
@@ -194,7 +200,8 @@ class RetargetingControllerSystem(LeafSystem):
         )
 
         self.robot_state_input_port = self.DeclareInputPort(
-            "robot_state", PortDataType.kVectorValued, 
+            "robot_state", 
+            PortDataType.kVectorValued, 
             controller_params.nq + controller_params.nv,
         )
 
@@ -206,15 +213,18 @@ class RetargetingControllerSystem(LeafSystem):
                 )
 
         self.position_cmd_output_ports = self.DeclareVectorOutputPort(
-            "$$$_cmd", BasicVector(controller_params.nq), calc_output)
+            "u_retargeted", 
+            BasicVector(controller_params.nq), 
+            calc_output)
 
     def DoCalcDiscreteVariableUpdates(self, context, events, discrete_state):
         super().DoCalcDiscreteVariableUpdates(context, events, discrete_state)
         q_goal = self.q_ref_input_port.Eval(context)
         u_goal = self.u_ref_input_port.Eval(context)
-
         robot_state = self.robot_state_input_port.Eval(context)
-    
+        
+        nq = self.controller.controller_params.nq
+        q = robot_state[:nq]
         (
             q_nominal,
             u_nominal,
@@ -222,84 +232,27 @@ class RetargetingControllerSystem(LeafSystem):
             indices_closest,
         ) = self.controller.find_closest_on_nominal_path(q)
 
-        u = self.controller.calc_u(
+        u_retargeted = self.controller.calc_u(
             q_nominal=q_nominal,
             u_nominal=u_nominal,
             robot_state=robot_state,
             q_goal=q_goal,
             u_goal=u_goal,
         )
-
-        q_nominal = u
-        discrete_state.set_value(q_nominal)
-
-#%%
-def add_controller_system_to_diagram(
-    builder: DiagramBuilder,
-    controller_iiwa,
-    iiwa_model,
-    t_knots: np.ndarray,
-    u_knots_ref: np.ndarray,
-    q_knots_ref: np.ndarray,
-    controller_params: RetargetingControllerParams,
-) -> Tuple[RetargetingControllerSystem, PiecewisePolynomial, PiecewisePolynomial]:
-    """
-    Adds the following three system to the diagram, and makes the following
-     two connections.
-    |trj_src_q| ---> |                  |
-                     | ControllerSystem |
-    |trj_src_u| ---> |                  |
-    """
-    # Create trajectory sources.
-    if t_knots is None:
-        q_ref_trj = PiecewisePolynomial(q_knots_ref)
-        u_ref_trj = PiecewisePolynomial(u_knots_ref)
-    else:
-        u_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, u_knots_ref.T)
-        q_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, q_knots_ref.T)
-
-    trj_src_u = TrajectorySource(u_ref_trj)
-    trj_src_q = TrajectorySource(q_ref_trj)
-    trj_src_u.set_name(kUTrjSrcName)
-    trj_src_q.set_name(kQTrjSrcName)
-
-    # controller system.
-    q_controller = RetargetingControllerSystem(
-        q_nominal=q_knots_ref,
-        u_nominal=u_knots_ref,
-        controller_params=controller_params,
-    )
-
-    builder.AddSystem(trj_src_u)
-    builder.AddSystem(trj_src_q)
-    builder.AddSystem(q_controller)
-
-    # Make connections.
-    builder.Connect(trj_src_q.get_output_port(), q_controller.q_ref_input_port)
-    builder.Connect(trj_src_u.get_output_port(), q_controller.u_ref_input_port)
-    builder.Connect(
-        plant.get_state_output_port(iiwa_model),
-        q_controller.robot_state_input_port)
-
-
-    # cmd_v2l = CommandVec2LcmSystem(q_sim)
-    # builder.AddSystem(cmd_v2l)
-    builder.Connect(
-        q_controller.position_cmd_output_ports,
-        controller_iiwa.joint_angle_commanded_input_port,
-    )
-    return q_controller, q_ref_trj, u_ref_trj
-
-
-
+        # print("DoCalcDiscreteVariableUpdates np.shape(u_retargeted) = ", np.shape(u_retargeted))
+        # print("DoCalcDiscreteVariableUpdates np.shape(q_nominal) = ", np.shape(q_nominal))
+        # print("DoCalcDiscreteVariableUpdates size problem")
+        print("DoCalcDiscreteVariableUpdates u_retargeted = ", u_retargeted)
+        print("Called RetargetingControllerSystem")
+        # discrete_state.set_value(q_nominal[0,:]) 
+        # q_nominal = u_retargeted
+        discrete_state.set_value(u_retargeted) 
 
 # %%
 
 def build_sim(
-    q_traj_iiwa: PiecewisePolynomial,
     Kp_iiwa: np.array,
     gravity: np.array,
-    f_C_W,
     time_step,
     add_schunk: bool,
     is_visualizing=False,
@@ -387,8 +340,66 @@ def build_sim(
     return builder, controller_iiwa, iiwa_model, iiwa_log_sink, plant, meshcat_vis
 
 
+#%%
+def add_controller_system_to_diagram(
+    builder: DiagramBuilder,
+    controller_iiwa,
+    iiwa_model,
+    t_knots: np.ndarray,
+    u_knots_ref: np.ndarray,
+    q_knots_ref: np.ndarray,
+    controller_params: RetargetingControllerParams,
+) -> Tuple[RetargetingControllerSystem, PiecewisePolynomial, PiecewisePolynomial]:
+    """
+    Adds the following three system to the diagram, and makes the following
+     two connections.
+    |trj_src_q| ---> |                  |
+                     | ControllerSystem |
+    |trj_src_u| ---> |                  |
+    """
+    # Create trajectory sources.
+    if t_knots is None:
+        q_ref_trj = PiecewisePolynomial(q_knots_ref)
+        u_ref_trj = PiecewisePolynomial(u_knots_ref)
+    else:
+        u_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, u_knots_ref.T)
+        q_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, q_knots_ref.T)
 
-def run_sim(
+    trj_src_u = TrajectorySource(u_ref_trj)
+    trj_src_q = TrajectorySource(q_ref_trj)
+    trj_src_u.set_name(kUTrjSrcName)
+    trj_src_q.set_name(kQTrjSrcName)
+
+    # controller system.
+    q_controller = RetargetingControllerSystem(
+        q_nominal=q_knots_ref,
+        u_nominal=u_knots_ref,
+        controller_params=controller_params,
+    )
+
+    builder.AddSystem(trj_src_u)
+    builder.AddSystem(trj_src_q)
+    builder.AddSystem(q_controller)
+
+    # Make connections.
+    builder.Connect(trj_src_q.get_output_port(), q_controller.q_ref_input_port)
+    builder.Connect(trj_src_u.get_output_port(), q_controller.u_ref_input_port)
+    builder.Connect(
+        plant.get_state_output_port(iiwa_model),
+        q_controller.robot_state_input_port)
+
+
+    # cmd_v2l = CommandVec2LcmSystem(q_sim)
+    # builder.AddSystem(cmd_v2l)
+    builder.Connect(
+        q_controller.position_cmd_output_ports,
+        controller_iiwa.joint_angle_commanded_input_port,
+    )
+    return q_controller, q_ref_trj, u_ref_trj
+
+
+
+def my_run_sim(
     builder, 
     controller_iiwa, 
     iiwa_model,
@@ -413,8 +424,13 @@ def run_sim(
         context_controller, np.zeros(7)
     )
 
+    # plant.get_actuation_input_port(iiwa_model).FixValue(
+    #     context_plant, 1* np.ones(7)
+    # )
+
     # robot initial configuration.
     q_iiwa_0 = q_traj_iiwa.value(0).squeeze()
+    # print("################### q_iiwa_0 = ", q_iiwa_0)
     t_final = q_traj_iiwa.end_time()
     plant.SetPositions(context_plant, iiwa_model, q_iiwa_0)
     if add_schunk:
@@ -434,7 +450,7 @@ def run_sim(
         meshcat_vis.StartRecording()
 
     sim.Initialize()
-    sim.set_target_realtime_rate(0)
+    sim.set_target_realtime_rate(1.0)
     sim.AdvanceTo(t_final)
 
     # meshcat visualizer
@@ -445,36 +461,29 @@ def run_sim(
     return iiwa_log, controller_iiwa
 
 
-# %%
-tester = TestIiwaStaticLoad()
 
-# coordinate of point C expressed in frame L7.
-tester.p_L7oC_L7 = np.zeros(3)
+
+
+# %%
 # force at C.
-tester.f_C_W = np.array([0, 0, -10.0])
+f_C_W = np.array([0, 0, -0.0])
 # Stiffness matrix of the robot.
-tester.Kp_iiwa = np.array([800.0, 600, 600, 600, 400, 200, 200])
-tester.gravity = np.array([0, 0, -0.0])
+Kp_iiwa = np.array([800.0, 600, 600, 600, 400, 200, 200])
+gravity = np.array([0, 0, -0.0])
 
 # robot trajectory (hold q0).
 N = 100
-horizon = 5.0
-q_iiwa_knots, t_iiwa_knots = linear_trajectory(horizon, N=N)
+horizon = 0.1
 u_knots_ref, t_knots = linear_trajectory(horizon, N=N)
 q_knots_ref, t_knots = linear_trajectory(horizon, N=N)
-
-
-# run simulation for horizon.
-tester.qa_traj = PiecewisePolynomial.FirstOrderHold(
-    t_iiwa_knots, q_iiwa_knots.T
+q_traj_ref = PiecewisePolynomial.FirstOrderHold(
+    t_knots, q_knots_ref.T
 )
 
 # %%
 builder, controller_iiwa, iiwa_model, iiwa_log_sink, plant, meshcat_vis = build_sim(
-    q_traj_iiwa=tester.qa_traj,
-    Kp_iiwa=tester.Kp_iiwa,
-    gravity=tester.gravity,
-    f_C_W=tester.f_C_W,
+    Kp_iiwa=Kp_iiwa,
+    gravity=gravity,
     time_step=1e-4,
     add_schunk=False,
     is_visualizing=True,
@@ -484,25 +493,26 @@ builder, controller_iiwa, iiwa_model, iiwa_log_sink, plant, meshcat_vis = build_
 #%%
 desired_joint_stiffness = np.array([1,1,1,1,1,1,1.0])
 joint_stiffness = np.array([800.0, 600, 600, 600, 400, 200, 200])
-control_period = 0.001
+control_period = 1e-4
 nq = 7
 nv = 7
 nu = 7
 
-q_nominal = np.array([1,1,1,1,1,1,1.0])
-u_nominal = np.array([1,1,1,1,1,1,1.0])
-q_goal = np.array([1,1,1,1,1,1,1.0])
-u_goal = np.array([1,1,1,1,1,1,1.0])
-robot_state = np.array([1,1,1,1,1,1,1, 0,0,0,0,0,0,0])
- 
+q_nominal = np.array([+0.0, +0.0,   0, -1.70, 0, -1.0, 0])
+u_nominal = np.array([+0.0, +0.0,   0, -1.70, 0, -1.0, 0])
+q_goal = np.array([+0.0, +0.0,   0, -1.70, 0, -1.0, 0])
+u_goal = np.array([+0.0, +0.0,   0, -1.70, 0, -1.0, 0])
+robot_state = np.array([+0.0, +0.0,   0, -1.70, 0, -1.0, 0,   0,0,0,0,0,0,0])
+
+#%%
 controller_params = RetargetingControllerParams(
     desired_joint_stiffness, joint_stiffness, control_period, nq, nv, nu)
 controller = RetargetingController(q_nominal, u_nominal, controller_params)
 controller_system = RetargetingControllerSystem(q_nominal, u_nominal, controller_params)
 
 
-u_retargeted = controller.calc_u(q_nominal, u_nominal, robot_state, q_goal, u_goal)
-controller.find_closest_on_nominal_path(q)
+# u_retargeted = controller.calc_u(q_nominal, u_nominal, robot_state, q_goal, u_goal)
+# controller.find_closest_on_nominal_path(robot_state[0:nq])
 
 q_controller, q_ref_trj, u_ref_trj = add_controller_system_to_diagram(
     builder,
@@ -521,22 +531,22 @@ render_system_with_graphviz(diagram, "controller_hardware.gz")
 
 # %%
 
-
-
-
-
-iiwa_log, controller_iiwa = run_sim(
+iiwa_log, controller_iiwa = my_run_sim(
     builder, 
     controller_iiwa, 
     iiwa_model, 
     iiwa_log_sink,
     plant, 
     meshcat_vis,
-    q_traj_iiwa=tester.qa_traj,
-    f_C_W=tester.f_C_W,
+    q_traj_iiwa=q_traj_ref,
+    f_C_W=f_C_W,
     add_schunk=False,
     is_visualizing=True,
     )
+
+
+
+
 
 # # Run simulation.
 # sim = Simulator(diagram)
@@ -614,18 +624,5 @@ iiwa_log, controller_iiwa = run_sim(
 # print("Done!")
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # %%
+
