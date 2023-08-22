@@ -59,7 +59,7 @@ meshcat = StartMeshcat()
 def build_simulation(
     Kp_iiwa: np.array,
     gravity: np.array,
-    time_step,
+    time_step: float,
     add_schunk: bool,
     is_visualizing=False,
     meshcat=None,
@@ -118,7 +118,9 @@ def build_simulation(
 
     # Logging
     iiwa_log_sink = LogVectorOutput(
-        plant.get_state_output_port(iiwa_model), builder, publish_period=0.001
+        plant.get_state_output_port(iiwa_model), 
+        builder, 
+        publish_period=0.001,
     )
 
     # visualizer
@@ -134,14 +136,12 @@ def build_simulation(
             meshcat,
         )
 
-    return builder, controller_iiwa, iiwa_model, iiwa_log_sink, plant, meshcat_vis
+    return builder, iiwa_log_sink, plant, meshcat_vis
 
 
 #%%
 def add_controller_system_to_diagram(
     builder: DiagramBuilder,
-    controller_iiwa,
-    iiwa_model,
     t_knots: np.ndarray,
     q_knots_ref: np.ndarray,
     u_knots_ref: np.ndarray,
@@ -151,8 +151,8 @@ def add_controller_system_to_diagram(
     Adds the following three system to the diagram, and makes the following
      two connections.
     |trj_src_q| ---> |                  |
-                     | ControllerSystem | ---> | IIWA |
-    |trj_src_u| ---> |                  |
+    |trj_src_u| ---> | ControllerSystem | ---> | RobotInternalController |
+    |IIWA|      ---> |                  |
     """
     # Create trajectory sources.
     if t_knots is None:
@@ -181,6 +181,7 @@ def add_controller_system_to_diagram(
     # Make connections.
     builder.Connect(trj_src_q.get_output_port(), retargeting_controller.q_ref_input_port)
     builder.Connect(trj_src_u.get_output_port(), retargeting_controller.u_ref_input_port)
+    iiwa_model = plant.GetModelInstanceByName("iiwa")
     builder.Connect(
         plant.get_state_output_port(iiwa_model),
         retargeting_controller.robot_state_input_port)
@@ -188,18 +189,18 @@ def add_controller_system_to_diagram(
 
     # cmd_v2l = CommandVec2LcmSystem(q_sim)
     # builder.AddSystem(cmd_v2l)
+    controller_iiwa = builder.GetSubsystemByName("robot_internal_controller")
     builder.Connect(
         retargeting_controller.position_cmd_output_ports,
         controller_iiwa.joint_angle_commanded_input_port,
     )
-    return retargeting_controller, q_ref_trj, u_ref_trj
-
+    return
 
 
 def run_simulation(
-    iiwa_model,
+    diagram: DiagramBuilder,
+    plant: MultibodyPlant, 
     iiwa_log_sink,
-    plant, 
     meshcat_vis,
     q_traj_iiwa: PiecewisePolynomial,
     f_C_W,
@@ -214,19 +215,20 @@ def run_simulation(
     context_controller = diagram.GetSubsystemContext(controller_iiwa, context)
     context_plant = diagram.GetSubsystemContext(plant, context)
     
+    # Set Tau feedforward to zero
     controller_iiwa.tau_feedforward_input_port.FixValue(
         context_controller, np.zeros(7)
     )
 
+    # Intitialize the ControllerSystem discrete state to 
     q_iiwa_0 = q_traj_iiwa.value(0).squeeze()
-
-    retargeting_controller = diagram.GetSubsystemByName(
-        "retargeting_controller")
+    retargeting_controller = diagram.GetSubsystemByName("retargeting_controller")
     context_retargeting = retargeting_controller.GetMyContextFromRoot(context)
     context_retargeting.SetDiscreteState(q_iiwa_0)
 
     # robot initial configuration.
     t_final = q_traj_iiwa.end_time()
+    iiwa_model = plant.GetModelInstanceByName("iiwa")
     plant.SetPositions(context_plant, iiwa_model, q_iiwa_0)
     if add_schunk:
         plant.get_actuation_input_port(schunk_model).FixValue(
@@ -251,6 +253,7 @@ def run_simulation(
     # meshcat visualizer
     if is_visualizing:
         meshcat_vis.PublishRecording()
+
 
     iiwa_log = iiwa_log_sink.FindLog(context)
     return iiwa_log, controller_iiwa
@@ -277,7 +280,6 @@ nq = 7 # configuration
 nv = 7 # velocity
 nu = 7 # control
 
-
 # robot trajectory (hold q0).
 N = 100
 horizon = 1.5
@@ -286,9 +288,11 @@ q_knots_ref, t_knots = sine_trajectory(horizon, N=N)
 q_traj_ref = PiecewisePolynomial.FirstOrderHold(
     t_knots, q_knots_ref.T
 )
+q_nominal = np.zeros(nq)
+u_nominal = np.zeros(nu)
 
 # %%
-builder, controller_iiwa, iiwa_model, iiwa_log_sink, plant, meshcat_vis = build_simulation(
+builder, iiwa_log_sink, plant, meshcat_vis = build_simulation(
     Kp_iiwa=Kp_iiwa,
     gravity=gravity,
     time_step=iiwa_period,
@@ -297,23 +301,14 @@ builder, controller_iiwa, iiwa_model, iiwa_log_sink, plant, meshcat_vis = build_
     meshcat=meshcat,
     )
 
-#%%
-
-q_nominal = np.array([+0.0, +0.0,   0, -1.70, 0, -1.0, 0])
-u_nominal = np.array([+0.0, +0.0,   0, -1.70, 0, -1.0, 0])
-q_goal = np.array([+0.0, +0.0,   0, -1.70, 0, -1.0, 0])
-u_goal = np.array([+0.0, +0.0,   0, -1.70, 0, -1.0, 0])
-robot_state = np.array([+0.0, +0.0,   0, -1.70, 0, -1.0, 0,   0,0,0,0,0,0,0])
 
 #%%
 controller_params = RetargetingControllerParams(
     Kp_iiwa_desired, Kp_iiwa, control_period, nq, nv, nu)
 controller_system = RetargetingControllerSystem(q_nominal, u_nominal, controller_params)
 
-retargeting_controller, q_ref_trj, u_ref_trj = add_controller_system_to_diagram(
+add_controller_system_to_diagram(
     builder,
-    controller_iiwa,
-    iiwa_model,
     t_knots,
     q_knots_ref,
     u_knots_ref,
@@ -321,20 +316,16 @@ retargeting_controller, q_ref_trj, u_ref_trj = add_controller_system_to_diagram(
 
 
 # %%
-
 diagram = builder.Build()
 render_system_with_graphviz(diagram, "controller_hardware.gz")
-
-#%%
-controller_iiwa = diagram.GetSubsystemByName("retargeting_controller")
 
 
 # %%
 
 iiwa_log, controller_iiwa = run_simulation(
-    iiwa_model, 
+    diagram,
+    plant,
     iiwa_log_sink,
-    plant, 
     meshcat_vis,
     q_traj_iiwa=q_traj_ref,
     f_C_W=f_C_W,
@@ -343,3 +334,4 @@ iiwa_log, controller_iiwa = run_simulation(
     )
 
 # %%
+
