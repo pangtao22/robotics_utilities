@@ -51,17 +51,14 @@ class RobotInternalController(LeafSystem):
         # control rate
         self.control_period = 2e-4  # 5000Hz.
         self.DeclareDiscreteState(self.nv)
-<<<<<<< HEAD
-        self.DeclarePeriodicDiscreteUpdateNoHandler(
-            period_sec=self.control_period, 
-            # offset_sec=0.0001*self.control_period,
-=======
         self.DeclarePeriodicDiscreteUpdateEvent(
             period_sec=self.control_period,
             offset_sec=0.0,
             update=self.Update
->>>>>>> 74f80cbda5c14894c672466fb839626ced238631
         )
+        # self.DeclarePeriodicDiscreteUpdateNoHandler(
+        #     period_sec=self.control_period, 
+        #     )
 
         # joint velocity estimator
         self.q_prev = None
@@ -93,7 +90,7 @@ class RobotInternalController(LeafSystem):
         q_cmd = self.joint_angle_commanded_input_port.Eval(context)
         tau_ff = self.tau_feedforward_input_port.Eval(context)
         # print("DoCalcDiscreteVariableUpdates robot_state = ", x)
-        print("robot internal controller q_cmd = ", q_cmd)
+        # print("robot internal controller q_cmd = ", q_cmd)
         # print("DoCalcDiscreteVariableUpdates tau_ff = ", tau_ff)
         # print("Called RobotInternalController")
         q = x[: self.nq]
@@ -123,6 +120,7 @@ class RobotInternalController(LeafSystem):
 
         if self.controller_mode == "impedance":
             Kv = self.CalcDamping(damping_ratio=1.0)
+            print("Kv = ", Kv)
             tau_stiffness = self.Kp * (q_cmd - q)
             tau_damping = -Kv * v
             tau += tau_damping + tau_stiffness

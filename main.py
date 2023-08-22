@@ -30,15 +30,6 @@ meshcat = StartMeshcat()
 
 
 # %% 
-# TODO
-# track a trajectory 
-# show difference with running the with stiff PD controller
-# cleanup code 
-
-# follow a synthetic trajectory in joint space
-# use the retargeting trick to make the robot "soft"
-    # fix diagram
-    # big cleanup
     # think about expansions:
         # controller plant vs mock plant
         # add end-effector, ground, multiple robots, objects
@@ -145,7 +136,7 @@ class RetargetingController:
         # retargeted configuration
         desired_joint_stiffness = self.controller_params.desired_joint_stiffness
         joint_stiffness = self.controller_params.joint_stiffness
-        print("u_nominal is a trajectory not a vector")
+        # print("u_nominal is a trajectory not a vector")
         q_retargeted = q + desired_joint_stiffness / joint_stiffness * (q_goal - q)
         return q_retargeted 
 
@@ -167,16 +158,14 @@ class RetargetingControllerSystem(LeafSystem):
         self.set_name("retargeting_controller")
         # Periodic state update
         self.control_period = controller_params.control_period
-<<<<<<< HEAD
-        self.DeclarePeriodicDiscreteUpdateNoHandler(
-            period_sec=self.control_period, 
-            )
-=======
+        # self.DeclarePeriodicDiscreteUpdateNoHandler(
+        #     period_sec=self.control_period, 
+        #     )
         self.DeclarePeriodicDiscreteUpdateEvent(
             period_sec=self.control_period,
             offset_sec=0.0,
-            update=self.Update)
->>>>>>> 74f80cbda5c14894c672466fb839626ced238631
+            update=self.Update
+        )
 
         # The object configuration is declared as part of the state, but not
         # used, so that indexing becomes easier.
@@ -238,13 +227,8 @@ class RetargetingControllerSystem(LeafSystem):
             q_goal=q_goal,
             u_goal=u_goal,
         )
-        # print("DoCalcDiscreteVariableUpdates np.shape(q_retargeted) = ", np.shape(q_retargeted))
-        # print("DoCalcDiscreteVariableUpdates np.shape(q_nominal) = ", np.shape(q_nominal))
-        # print("DoCalcDiscreteVariableUpdates size problem")
-        print("Retargeting controller q_retargeted = ", q_retargeted)
+        # print("Retargeting controller q_retargeted = ", q_retargeted)
         # print("Called RetargetingControllerSystem")
-        # discrete_state.set_value(q_nominal[0,:]) 
-        # q_nominal = q_retargeted
         discrete_state.set_value(q_retargeted) 
 
 # %%
@@ -352,7 +336,7 @@ def add_controller_system_to_diagram(
     Adds the following three system to the diagram, and makes the following
      two connections.
     |trj_src_q| ---> |                  |
-                     | ControllerSystem |
+                     | ControllerSystem | ---> | IIWA |
     |trj_src_u| ---> |                  |
     """
     # Create trajectory sources.
@@ -360,13 +344,13 @@ def add_controller_system_to_diagram(
         q_ref_trj = PiecewisePolynomial(q_knots_ref)
         u_ref_trj = PiecewisePolynomial(u_knots_ref)
     else:
-        u_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, u_knots_ref.T)
         q_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, q_knots_ref.T)
+        u_ref_trj = PiecewisePolynomial.FirstOrderHold(t_knots, u_knots_ref.T)
 
-    trj_src_u = TrajectorySource(u_ref_trj)
     trj_src_q = TrajectorySource(q_ref_trj)
-    trj_src_u.set_name("u_trajectory_source")
+    trj_src_u = TrajectorySource(u_ref_trj)
     trj_src_q.set_name("q_trajectory_source")
+    trj_src_u.set_name("u_trajectory_source")
 
     # controller system.
     retargeting_controller = RetargetingControllerSystem(
@@ -375,8 +359,8 @@ def add_controller_system_to_diagram(
         controller_params=controller_params,
     )
 
-    builder.AddSystem(trj_src_u)
     builder.AddSystem(trj_src_q)
+    builder.AddSystem(trj_src_u)
     builder.AddSystem(retargeting_controller)
 
     # Make connections.
@@ -424,26 +408,15 @@ def my_run_sim(
         context_controller, np.zeros(7)
     )
 
-<<<<<<< HEAD
-    # robot initial configuration.
     q_iiwa_0 = q_traj_iiwa.value(0).squeeze()
     context_retargeting.SetDiscreteState(q_iiwa_0)
-    
-=======
-    q_iiwa_0 = q_traj_iiwa.value(0).squeeze()
 
-    retargeting_controller = diagram.GetSubsystemByName(
-        "retargeting_controller")
-    context_rc = retargeting_controller.GetMyContextFromRoot(context)
-    context_rc.SetDiscreteState(q_iiwa_0)
-
-    # plant.get_actuation_input_port(iiwa_model).FixValue(
-    #     context_plant, 1* np.ones(7)
-    # )
+    # retargeting_controller = diagram.GetSubsystemByName(
+    #     "retargeting_controller")
+    # context_rc = retargeting_controller.GetMyContextFromRoot(context)
+    # context_rc.SetDiscreteState(q_iiwa_0)
 
     # robot initial configuration.
-    # print("################### q_iiwa_0 = ", q_iiwa_0)
->>>>>>> 74f80cbda5c14894c672466fb839626ced238631
     t_final = q_traj_iiwa.end_time()
     plant.SetPositions(context_plant, iiwa_model, q_iiwa_0)
     if add_schunk:
@@ -483,9 +456,9 @@ iiwa_period = 1e-4
 # force at C.
 f_C_W = np.array([0, 0, -0.0])
 # Stiffness matrix of the robot.
-# Kp_iiwa = np.array([800.0, 600, 600, 600, 400, 200, 200])
-Kp_iiwa_desired = 10 * np.array([1,1,1,1,1,1,1.0])
-Kp_iiwa_desired = Kp_iiwa
+Kp_iiwa = np.array([800.0, 600, 600, 600, 400, 200, 200])
+# Kp_iiwa_desired = Kp_iiwa
+Kp_iiwa_desired = 100 * np.array([1,1,1,1,1,1,1.0])
 # Gravity vector
 gravity = np.array([0, 0, -10.0])
 # retargeting_controller period
@@ -499,8 +472,6 @@ nu = 7 # control
 # robot trajectory (hold q0).
 N = 100
 horizon = 1.5
-# u_knots_ref, t_knots = linear_trajectory(horizon, N=N)
-# q_knots_ref, t_knots = linear_trajectory(horizon, N=N)
 u_knots_ref, t_knots = sine_trajectory(horizon, N=N)
 q_knots_ref, t_knots = sine_trajectory(horizon, N=N)
 q_traj_ref = PiecewisePolynomial.FirstOrderHold(
