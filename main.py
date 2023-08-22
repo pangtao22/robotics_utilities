@@ -23,9 +23,6 @@ from iiwa_controller.utils import *
 from iiwa_controller.robot_internal_controller import RobotInternalController
 from iiwa_controller.examples.test_iiwa_static_load import TestIiwaStaticLoad
 
-kQTrjSrcName = "QTrajectorySource"
-kUTrjSrcName = "UTrajectorySource"
-
 # %%
 # visualization
 meshcat = StartMeshcat()
@@ -34,6 +31,10 @@ meshcat = StartMeshcat()
 
 # %% 
 # TODO
+# track a trajectory 
+# show difference with running the with stiff PD controller
+# cleanup code 
+
 # follow a synthetic trajectory in joint space
 # use the retargeting trick to make the robot "soft"
     # fix diagram
@@ -62,18 +63,18 @@ meshcat = StartMeshcat()
 
 # %%
 
-# def sine_trajectory(horizon, N=100):
-#     q0 = np.array([+0.0, -0.0, 0, -1.70, 0, -1.0, 0])
-#     q1 = np.array([+np.pi, +0.0, 0, -1.70, 0, -1.0, 0])
-#     q_iiwa_knots = np.zeros((N, 7))
-#     for i in range(N):
-#         q_iiwa_knots[i] = q0 + (q1 - q0) * (-np.cos(2*np.pi * i / (N-1)) + 1) / 2
-#     t_iiwa_knots = np.array([horizon * i / (N-1) for i in range(N)])
-#     return q_iiwa_knots, t_iiwa_knots
+def sine_trajectory(horizon, N=100):
+    q0 = np.array([+0.0, +0*np.pi, 0, -1.70, 0, -1.0, 0])
+    q1 = np.array([+0.0, +0.2*np.pi, 0, -1.70, 0, -1.0, 0])
+    q_iiwa_knots = np.zeros((N, 7))
+    for i in range(N):
+        q_iiwa_knots[i] = q0 + (q1 - q0) * (1 - np.cos(2*np.pi * i / (N-1))) / 2
+    t_iiwa_knots = np.array([horizon * i / (N-1) for i in range(N)])
+    return q_iiwa_knots, t_iiwa_knots
 
 def linear_trajectory(horizon, N=100):
-    q0 = np.array([+0.0, +0*np.pi,   0, -1.70, 0, -1.0, 0])
-    q1 = np.array([+0.0, +0*np.pi, 0, -1.70, 0, -1.0, 0])
+    q0 = np.array([+0.0, +0*np.pi, 0, -1.70, 0, -1.0, 0])
+    q1 = np.array([+0.0, +0.2*np.pi, 0, -1.70, 0, -1.0, 0])
     q_iiwa_knots = np.zeros((N, 7))
     for i in range(N):
         q_iiwa_knots[i] = q0 + (q1 - q0) * i / (N-1)
@@ -139,22 +140,14 @@ class RetargetingController:
 
         nq = self.controller_params.nq
         q = robot_state[:nq]
-        v = robot_state[nq:]
-        # print("calc_u q_nominal = ", np.shape(q_nominal))
-        # print("calc_u u_nominal = ", np.shape(u_nominal))
-        # print("calc_u q_goal = ", np.shape(q_goal))
-        # print("calc_u u_goal = ", np.shape(u_goal))
-        # print("calc_u robot_state = ", np.shape(robot_state))
-        # print("calc_u q = ", np.shape(q))
-        # print("calc_u v = ", np.shape(v))
+        # v = robot_state[nq:]
 
         # retargeted configuration
         desired_joint_stiffness = self.controller_params.desired_joint_stiffness
         joint_stiffness = self.controller_params.joint_stiffness
-        u_retargeted = q + desired_joint_stiffness / joint_stiffness * (u_nominal - q)
-        # print("u_retargeted = set to current q")
-        u_retargeted = q
-        return u_retargeted
+        print("u_nominal is a trajectory not a vector")
+        q_retargeted = q + desired_joint_stiffness / joint_stiffness * (q_goal - q)
+        return q_retargeted 
 
     def find_closest_on_nominal_path(self, q):
         t_value = 0.0 # not used anyway
@@ -170,13 +163,13 @@ class RetargetingControllerSystem(LeafSystem):
         controller_params: RetargetingControllerParams,
     ):
         super().__init__()
-        # self.plant = self.q_sim.get_plant()
 
         self.set_name("retargeting_controller")
         # Periodic state update
         self.control_period = controller_params.control_period
         self.DeclarePeriodicDiscreteUpdateNoHandler(
-            period_sec=self.control_period)
+            period_sec=self.control_period, 
+            )
 
         # The object configuration is declared as part of the state, but not
         # used, so that indexing becomes easier.
@@ -185,6 +178,12 @@ class RetargetingControllerSystem(LeafSystem):
             q_nominal=q_nominal,
             u_nominal=u_nominal,
             controller_params=controller_params,
+        )
+
+        self.robot_state_input_port = self.DeclareInputPort(
+            "robot_state", 
+            PortDataType.kVectorValued, 
+            controller_params.nq + controller_params.nv,
         )
 
         self.q_ref_input_port = self.DeclareInputPort(
@@ -199,12 +198,6 @@ class RetargetingControllerSystem(LeafSystem):
             controller_params.nu,
         )
 
-        self.robot_state_input_port = self.DeclareInputPort(
-            "robot_state", 
-            PortDataType.kVectorValued, 
-            controller_params.nq + controller_params.nv,
-        )
-
         self.position_cmd_output_ports = {}
 
         def calc_output(context, output):
@@ -213,7 +206,7 @@ class RetargetingControllerSystem(LeafSystem):
                 )
 
         self.position_cmd_output_ports = self.DeclareVectorOutputPort(
-            "u_retargeted", 
+            "q_retargeted", 
             BasicVector(controller_params.nq), 
             calc_output)
 
@@ -232,24 +225,23 @@ class RetargetingControllerSystem(LeafSystem):
             indices_closest,
         ) = self.controller.find_closest_on_nominal_path(q)
 
-        u_retargeted = self.controller.calc_u(
+        q_retargeted = self.controller.calc_u(
             q_nominal=q_nominal,
             u_nominal=u_nominal,
             robot_state=robot_state,
             q_goal=q_goal,
             u_goal=u_goal,
         )
-        # print("DoCalcDiscreteVariableUpdates np.shape(u_retargeted) = ", np.shape(u_retargeted))
+        # print("DoCalcDiscreteVariableUpdates np.shape(q_retargeted) = ", np.shape(q_retargeted))
         # print("DoCalcDiscreteVariableUpdates np.shape(q_nominal) = ", np.shape(q_nominal))
         # print("DoCalcDiscreteVariableUpdates size problem")
-        print("DoCalcDiscreteVariableUpdates u_retargeted = ", u_retargeted)
-        print("Called RetargetingControllerSystem")
+        print("Retargeting controller q_retargeted = ", q_retargeted)
+        # print("Called RetargetingControllerSystem")
         # discrete_state.set_value(q_nominal[0,:]) 
-        # q_nominal = u_retargeted
-        discrete_state.set_value(u_retargeted) 
+        # q_nominal = q_retargeted
+        discrete_state.set_value(q_retargeted) 
 
 # %%
-
 def build_sim(
     Kp_iiwa: np.array,
     gravity: np.array,
@@ -310,10 +302,10 @@ def build_sim(
     )
 
     # IIWA Trajectory source
-    print("removed old trajectory source")
+    # print("removed old trajectory source")
     # traj_source_iiwa = TrajectorySource(q_traj_iiwa)
     # builder.AddSystem(traj_source_iiwa)
-    print("disconnected controller_iiwa input port")
+    # print("disconnected controller_iiwa input port")
     # builder.Connect(
     #     traj_source_iiwa.get_output_port(0),
     #     controller_iiwa.joint_angle_commanded_input_port,
@@ -367,11 +359,11 @@ def add_controller_system_to_diagram(
 
     trj_src_u = TrajectorySource(u_ref_trj)
     trj_src_q = TrajectorySource(q_ref_trj)
-    trj_src_u.set_name(kUTrjSrcName)
-    trj_src_q.set_name(kQTrjSrcName)
+    trj_src_u.set_name("u_trajectory_source")
+    trj_src_q.set_name("q_trajectory_source")
 
     # controller system.
-    q_controller = RetargetingControllerSystem(
+    retargeting_controller = RetargetingControllerSystem(
         q_nominal=q_knots_ref,
         u_nominal=u_knots_ref,
         controller_params=controller_params,
@@ -379,29 +371,30 @@ def add_controller_system_to_diagram(
 
     builder.AddSystem(trj_src_u)
     builder.AddSystem(trj_src_q)
-    builder.AddSystem(q_controller)
+    builder.AddSystem(retargeting_controller)
 
     # Make connections.
-    builder.Connect(trj_src_q.get_output_port(), q_controller.q_ref_input_port)
-    builder.Connect(trj_src_u.get_output_port(), q_controller.u_ref_input_port)
+    builder.Connect(trj_src_q.get_output_port(), retargeting_controller.q_ref_input_port)
+    builder.Connect(trj_src_u.get_output_port(), retargeting_controller.u_ref_input_port)
     builder.Connect(
         plant.get_state_output_port(iiwa_model),
-        q_controller.robot_state_input_port)
+        retargeting_controller.robot_state_input_port)
 
 
     # cmd_v2l = CommandVec2LcmSystem(q_sim)
     # builder.AddSystem(cmd_v2l)
     builder.Connect(
-        q_controller.position_cmd_output_ports,
+        retargeting_controller.position_cmd_output_ports,
         controller_iiwa.joint_angle_commanded_input_port,
     )
-    return q_controller, q_ref_trj, u_ref_trj
+    return retargeting_controller, q_ref_trj, u_ref_trj
 
 
 
 def my_run_sim(
     builder, 
     controller_iiwa, 
+    retargeting_controller,
     iiwa_model,
     iiwa_log_sink,
     plant, 
@@ -419,18 +412,16 @@ def my_run_sim(
     context = sim.get_context()
     context_controller = diagram.GetSubsystemContext(controller_iiwa, context)
     context_plant = diagram.GetSubsystemContext(plant, context)
-
+    context_retargeting = diagram.GetSubsystemContext(retargeting_controller, context)
+    
     controller_iiwa.tau_feedforward_input_port.FixValue(
         context_controller, np.zeros(7)
     )
 
-    # plant.get_actuation_input_port(iiwa_model).FixValue(
-    #     context_plant, 1* np.ones(7)
-    # )
-
     # robot initial configuration.
     q_iiwa_0 = q_traj_iiwa.value(0).squeeze()
-    # print("################### q_iiwa_0 = ", q_iiwa_0)
+    context_retargeting.SetDiscreteState(q_iiwa_0)
+    
     t_final = q_traj_iiwa.end_time()
     plant.SetPositions(context_plant, iiwa_model, q_iiwa_0)
     if add_schunk:
@@ -450,7 +441,7 @@ def my_run_sim(
         meshcat_vis.StartRecording()
 
     sim.Initialize()
-    sim.set_target_realtime_rate(1.0)
+    sim.set_target_realtime_rate(0.0)
     sim.AdvanceTo(t_final)
 
     # meshcat visualizer
@@ -465,17 +456,31 @@ def my_run_sim(
 
 
 # %%
+# robot simulation period
+iiwa_period = 1e-4
 # force at C.
 f_C_W = np.array([0, 0, -0.0])
 # Stiffness matrix of the robot.
-Kp_iiwa = np.array([800.0, 600, 600, 600, 400, 200, 200])
-gravity = np.array([0, 0, -0.0])
+# Kp_iiwa = np.array([800.0, 600, 600, 600, 400, 200, 200])
+Kp_iiwa_desired = 10 * np.array([1,1,1,1,1,1,1.0])
+Kp_iiwa_desired = Kp_iiwa
+# Gravity vector
+gravity = np.array([0, 0, -10.0])
+# retargeting_controller period
+control_period = 1e-4
+# dimensions
+nq = 7 # configuration
+nv = 7 # velocity
+nu = 7 # control
+
 
 # robot trajectory (hold q0).
 N = 100
-horizon = 0.1
-u_knots_ref, t_knots = linear_trajectory(horizon, N=N)
-q_knots_ref, t_knots = linear_trajectory(horizon, N=N)
+horizon = 1.5
+# u_knots_ref, t_knots = linear_trajectory(horizon, N=N)
+# q_knots_ref, t_knots = linear_trajectory(horizon, N=N)
+u_knots_ref, t_knots = sine_trajectory(horizon, N=N)
+q_knots_ref, t_knots = sine_trajectory(horizon, N=N)
 q_traj_ref = PiecewisePolynomial.FirstOrderHold(
     t_knots, q_knots_ref.T
 )
@@ -484,19 +489,13 @@ q_traj_ref = PiecewisePolynomial.FirstOrderHold(
 builder, controller_iiwa, iiwa_model, iiwa_log_sink, plant, meshcat_vis = build_sim(
     Kp_iiwa=Kp_iiwa,
     gravity=gravity,
-    time_step=1e-4,
+    time_step=iiwa_period,
     add_schunk=False,
     is_visualizing=True,
     meshcat=meshcat,
     )
 
 #%%
-desired_joint_stiffness = np.array([1,1,1,1,1,1,1.0])
-joint_stiffness = np.array([800.0, 600, 600, 600, 400, 200, 200])
-control_period = 1e-4
-nq = 7
-nv = 7
-nu = 7
 
 q_nominal = np.array([+0.0, +0.0,   0, -1.70, 0, -1.0, 0])
 u_nominal = np.array([+0.0, +0.0,   0, -1.70, 0, -1.0, 0])
@@ -506,15 +505,10 @@ robot_state = np.array([+0.0, +0.0,   0, -1.70, 0, -1.0, 0,   0,0,0,0,0,0,0])
 
 #%%
 controller_params = RetargetingControllerParams(
-    desired_joint_stiffness, joint_stiffness, control_period, nq, nv, nu)
-controller = RetargetingController(q_nominal, u_nominal, controller_params)
+    Kp_iiwa_desired, Kp_iiwa, control_period, nq, nv, nu)
 controller_system = RetargetingControllerSystem(q_nominal, u_nominal, controller_params)
 
-
-# u_retargeted = controller.calc_u(q_nominal, u_nominal, robot_state, q_goal, u_goal)
-# controller.find_closest_on_nominal_path(robot_state[0:nq])
-
-q_controller, q_ref_trj, u_ref_trj = add_controller_system_to_diagram(
+retargeting_controller, q_ref_trj, u_ref_trj = add_controller_system_to_diagram(
     builder,
     controller_iiwa,
     iiwa_model,
@@ -534,8 +528,10 @@ render_system_with_graphviz(diagram, "controller_hardware.gz")
 iiwa_log, controller_iiwa = my_run_sim(
     builder, 
     controller_iiwa, 
+    retargeting_controller,
     iiwa_model, 
     iiwa_log_sink,
+
     plant, 
     meshcat_vis,
     q_traj_iiwa=q_traj_ref,
@@ -544,85 +540,4 @@ iiwa_log, controller_iiwa = my_run_sim(
     is_visualizing=True,
     )
 
-
-
-
-
-# # Run simulation.
-# sim = Simulator(diagram)
-# context = sim.get_context()
-# context_controller = diagram.GetSubsystemContext(controller_iiwa, context)
-# context_plant = diagram.GetSubsystemContext(plant, context)
-
-# controller_iiwa.tau_feedforward_input_port.FixValue(
-#     context_controller, np.zeros(7)
-# )
-
-# # robot initial configuration.
-# q_iiwa_0 = q_traj_iiwa.value(0).squeeze()
-# t_final = q_traj_iiwa.end_time()
-# plant.SetPositions(context_plant, iiwa_model, q_iiwa_0)
-# if add_schunk:
-#     plant.get_actuation_input_port(schunk_model).FixValue(
-#         context_plant, np.zeros(2)
-#     )
-
-# # constant force on link 7.
-# easf = ExternallyAppliedSpatialForce()
-# easf.F_Bq_W = SpatialForce([0, 0, 0], f_C_W)
-# easf.body_index = plant.GetBodyByName("iiwa_link_7").index()
-# plant.get_applied_spatial_force_input_port().FixValue(context_plant, [easf])
-
-# # meshcat visualizer
-# if is_visualizing:
-#     meshcat_vis.DeleteRecording()
-#     meshcat_vis.StartRecording()
-
-# sim.Initialize()
-# sim.set_target_realtime_rate(0)
-# sim.AdvanceTo(t_final)
-
-# # meshcat visualizer
-# if is_visualizing:
-#     meshcat_vis.PublishRecording()
-
-# iiwa_log = iiwa_log_sink.FindLog(context)
-# return iiwa_log, controller_iiwa
-
-
-
-
-
-
-
-
-
-
-
-# # Run simulator.
-# simulator = Simulator(diagram)
-# simulator.set_target_realtime_rate(1.0)
-# simulator.set_publish_every_time_step(False)
-
-# # Make sure that the first status message read my the sliders is the real
-# # status of the hand.
-# context = simulator.get_context()
-# context_allegro_sub = allegro_status_sub.GetMyContextFromRoot(context)
-# context_allegro_sub.SetAbstractState(0, allegro_status_msg)
-# # context_ctrller = ctrller_allegro.GetMyContextFromRoot(context)
-# # ctrller_allegro.q_input_port.FixValue(context_ctrller, q0)
-
-# q_scope_msg = wait_for_msg(
-#     kQEstimatedChannelName, lcmt_scope, lambda msg: msg.size > 0
-# )
-# context_q_sub = q_sub.GetMyContextFromRoot(context)
-# context_q_sub.SetAbstractState(0, q_scope_msg)
-
-
-# print("Running!")
-# simulator.AdvanceTo(t_knots[-1] + 5)
-# print("Done!")
-
-
 # %%
-
