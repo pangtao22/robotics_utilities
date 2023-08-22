@@ -2,6 +2,7 @@
 import numpy as np
 import os
 
+
 from typing import Tuple
 from pydrake.all import (
     PiecewisePolynomial, 
@@ -36,7 +37,6 @@ meshcat = StartMeshcat()
         # controller plant vs mock plant
         # add end-effector, ground, multiple robots, objects
         # record and display data
-    # fix issue with the single target q vs trajectory of target qs
     # integrate the retargeting controller with the system {IIWA controller + IIWA robot}
 # load a trajectory form MJPC 
 # test the trajectory rollout 
@@ -61,6 +61,7 @@ def build_simulation(
     gravity: np.array,
     time_step: float,
     add_schunk: bool,
+    add_ground: bool,
     is_visualizing=False,
     meshcat=None,
 ):
@@ -71,7 +72,12 @@ def build_simulation(
     plant = MultibodyPlant(time_step)
     plant.mutable_gravity_field().set_gravity_vector(gravity)
 
-    _, scene_graph = AddMultibodyPlantSceneGraph(builder, plant=plant)
+    # if add_ground:
+        # print("WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW")
+    plant, scene_graph = AddMultibodyPlantSceneGraph(builder, plant=plant)
+    # plant.RegisterAsSourceForSceneGraph(scene_graph)
+    # AddGround(plant)
+
     parser = Parser(plant=plant, scene_graph=scene_graph)
     add_package_paths(parser)
 
@@ -196,7 +202,7 @@ def add_controller_system_to_diagram(
     )
     return
 
-
+#%%
 def run_simulation(
     diagram: DiagramBuilder,
     plant: MultibodyPlant, 
@@ -270,9 +276,10 @@ f_C_W = np.array([0, 0, -0.0])
 # Stiffness matrix of the robot.
 Kp_iiwa = np.array([800.0, 600, 600, 600, 400, 200, 200])
 # Kp_iiwa_desired = Kp_iiwa
+# Kp_iiwa_desired = 0.0*Kp_iiwa
 Kp_iiwa_desired = 100 * np.array([1,1,1,1,1,1,1.0])
 # Gravity vector
-gravity = np.array([0, 0, -10.0])
+gravity = np.array([0, 0, -100000.0])
 # retargeting_controller period
 control_period = 1e-4
 # dimensions
@@ -282,7 +289,7 @@ nu = 7 # control
 
 # robot trajectory (hold q0).
 N = 100
-horizon = 1.5
+horizon = 2.5
 u_knots_ref, t_knots = sine_trajectory(horizon, N=N)
 q_knots_ref, t_knots = sine_trajectory(horizon, N=N)
 q_traj_ref = PiecewisePolynomial.FirstOrderHold(
@@ -297,10 +304,14 @@ builder, iiwa_log_sink, plant, meshcat_vis = build_simulation(
     gravity=gravity,
     time_step=iiwa_period,
     add_schunk=False,
+    add_ground=True,
     is_visualizing=True,
     meshcat=meshcat,
     )
 
+#%%
+# plant
+# AddGround(plant)
 
 #%%
 controller_params = RetargetingControllerParams(
@@ -321,7 +332,6 @@ render_system_with_graphviz(diagram, "controller_hardware.gz")
 
 
 # %%
-
 iiwa_log, controller_iiwa = run_simulation(
     diagram,
     plant,
@@ -334,4 +344,6 @@ iiwa_log, controller_iiwa = run_simulation(
     )
 
 # %%
+
+
 
