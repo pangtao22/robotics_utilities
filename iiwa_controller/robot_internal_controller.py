@@ -89,10 +89,6 @@ class RobotInternalController(LeafSystem):
         x = self.robot_state_input_port.Eval(context)
         q_cmd = self.joint_angle_commanded_input_port.Eval(context)
         tau_ff = self.tau_feedforward_input_port.Eval(context)
-        # print("DoCalcDiscreteVariableUpdates robot_state = ", x)
-        # print("robot internal controller q_cmd = ", q_cmd)
-        # print("DoCalcDiscreteVariableUpdates tau_ff = ", tau_ff)
-        # print("Called RobotInternalController")
         q = x[: self.nq]
         v = x[self.nq :]
 
@@ -120,7 +116,6 @@ class RobotInternalController(LeafSystem):
 
         if self.controller_mode == "impedance":
             Kv = self.CalcDamping(damping_ratio=1.0)
-            print("Kv = ", Kv)
             tau_stiffness = self.Kp * (q_cmd - q)
             tau_damping = -Kv * v
             tau += tau_damping + tau_stiffness
@@ -141,12 +136,10 @@ class RobotInternalController(LeafSystem):
 
         output = discrete_state.get_mutable_vector().get_mutable_value()
         output[:] = tau + tau_ff
-        # print("DoCalcDiscreteVariableUpdates output = ", output)
 
     def CalcJointTorques(self, context, y_data):
         state = context.get_discrete_state_vector().get_value()
         y = y_data.get_mutable_value()
-        # print("CalcJointTorques state = ", state)
         y[:] = state
 
     def CalcDamping(self, damping_ratio: float):

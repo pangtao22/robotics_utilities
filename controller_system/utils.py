@@ -10,7 +10,7 @@ from pydrake.all import (
 def sine_trajectory(horizon, 
     N=100, 
     q0=np.array([+0.0, +0.00*np.pi, 0, -1.70, 0, -1.0, 0]),
-    q1=np.array([+0.0, +0.25*np.pi, 0, -1.70, 0, -1.0, 0]),
+    q1=np.array([+0.0, +0.35*np.pi, 0, -1.70, 0, -1.0, 0]),
 ):
     q_iiwa_knots = np.zeros((N, 7))
     for i in range(N):

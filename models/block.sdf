@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<sdf version="1.7">
+  <model name="block">
+    <link name="block_link">
+      <pose>0 0 3.0 0 0 0</pose>
+      <inertial>
+        <mass>1.0</mass>
+        <inertia>
+          <ixx>0.05</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.05</iyy>
+          <iyz>0</iyz>
+          <izz>0.05</izz>
+        </inertia>
+      </inertial>
+      <visual name="visual">
+        <geometry>
+          <box>
+            <size>0.3 0.2 0.2</size>
+          </box>
+        </geometry>
+      </visual>
+      <collision name="collision">
+        <geometry>
+          <box>
+            <size>0.3 0.2 0.2</size>
+          </box>
+        </geometry>
+      </collision>
+    </link>
+    <frame name="block_center">
+      <pose relative_to="block_link">0 0 0.0 0 0 0</pose>
+    </frame>
+  </model>
+</sdf>

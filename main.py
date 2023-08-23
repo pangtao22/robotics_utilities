@@ -18,6 +18,11 @@ from pydrake.all import (
     Simulator,
     ExternallyAppliedSpatialForce,
     SpatialForce,
+    RotationMatrix,
+    RigidTransform,
+    HalfSpace,
+    AddDefaultVisualization,
+    RollPitchYaw,
 )
 
 from iiwa_controller.utils import *
@@ -41,9 +46,7 @@ meshcat = StartMeshcat()
 # load a trajectory form MJPC 
 # test the trajectory rollout 
 # add a second arm to the scene
-# add floor to the scene
 # add end-effectors
-# add an object in the scene
 # test the interaction between the soft PD and the object
 # test the MJPC trajectory single arm with the object and compare 
 # record the positions, velocities, torques
@@ -72,10 +75,8 @@ def build_simulation(
     plant = MultibodyPlant(time_step)
     plant.mutable_gravity_field().set_gravity_vector(gravity)
 
-    # if add_ground:
-        # print("WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW")
     plant, scene_graph = AddMultibodyPlantSceneGraph(builder, plant=plant)
-    # plant.RegisterAsSourceForSceneGraph(scene_graph)
+    # if add_ground:
     # AddGround(plant)
 
     parser = Parser(plant=plant, scene_graph=scene_graph)
@@ -92,7 +93,7 @@ def build_simulation(
         schunk_model = plant.GetModelInstanceByName("schunk")
     else:
         ProcessModelDirectives(
-            LoadModelDirectives(os.path.join(models_dir, "iiwa.yml")),
+            LoadModelDirectives(os.path.join(models_dir, "iiwa_ground.yml")),
             plant,
             parser,
         )
@@ -235,7 +236,12 @@ def run_simulation(
     # robot initial configuration.
     t_final = q_traj_iiwa.end_time()
     iiwa_model = plant.GetModelInstanceByName("iiwa")
+    block_model = plant.GetModelInstanceByName("block")
     plant.SetPositions(context_plant, iiwa_model, q_iiwa_0)
+    block_quat = np.array([1, 0, 0, 1])
+    block_pos = np.array([0.5, 0.0, 0.3])
+    plant.SetPositions(context_plant, block_model, np.concatenate((block_quat, block_pos)))
+
     if add_schunk:
         plant.get_actuation_input_port(schunk_model).FixValue(
             context_plant, np.zeros(2)
@@ -270,16 +276,16 @@ def run_simulation(
 
 # %%
 # robot simulation period
-iiwa_period = 1e-4
+iiwa_period = 2e-4
 # force at C.
 f_C_W = np.array([0, 0, -0.0])
 # Stiffness matrix of the robot.
 Kp_iiwa = np.array([800.0, 600, 600, 600, 400, 200, 200])
 # Kp_iiwa_desired = Kp_iiwa
-# Kp_iiwa_desired = 0.0*Kp_iiwa
-Kp_iiwa_desired = 100 * np.array([1,1,1,1,1,1,1.0])
+Kp_iiwa_desired = 0.1*Kp_iiwa
+# Kp_iiwa_desired = 100 * np.array([1,1,1,1,1,1,1.0])
 # Gravity vector
-gravity = np.array([0, 0, -100000.0])
+gravity = np.array([0, 0, -10.0])
 # retargeting_controller period
 control_period = 1e-4
 # dimensions
@@ -289,7 +295,7 @@ nu = 7 # control
 
 # robot trajectory (hold q0).
 N = 100
-horizon = 2.5
+horizon = 20.0
 u_knots_ref, t_knots = sine_trajectory(horizon, N=N)
 q_knots_ref, t_knots = sine_trajectory(horizon, N=N)
 q_traj_ref = PiecewisePolynomial.FirstOrderHold(

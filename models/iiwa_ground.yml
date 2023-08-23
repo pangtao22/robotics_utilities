@@ -1,0 +1,21 @@
+directives:
+
+- add_model:
+    name: iiwa
+    file: package://drake_manipulation_models/iiwa_description/iiwa7/iiwa7_with_box_collision.sdf
+
+- add_model:
+    name: ground        
+    file: package://iiwa_controller/ground.sdf
+
+- add_model:
+    name: block
+    file: package://iiwa_controller/block.sdf
+
+- add_weld:
+    parent: world
+    child: iiwa::iiwa_link_0
+
+- add_weld:
+    parent: world
+    child: ground::ground_link
